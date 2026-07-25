@@ -1,7 +1,6 @@
-"""Formatting utilities for temperature and weather values."""
+"""Formatting utilities for temperature values without special symbols."""
 
 def format_temp(temp_c: float | None, unit: str = "C") -> str:
-    """Format temperature value directly without special degree symbols."""
     if temp_c is None:
         return "N/A"
     

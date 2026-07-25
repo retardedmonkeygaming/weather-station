@@ -1,4 +1,4 @@
-"""LCD 16x2 Text Rendering Widgets with Title-Case Formatting & Emoji Support."""
+"""LCD 16x2 Text Rendering Widgets with Bracketless Status & Short Moon Forms."""
 import time
 from datetime import datetime
 from core.state import AppStateModel
@@ -8,7 +8,6 @@ START_TIME = time.time()
 
 
 def get_next_enabled_page(current: int, enabled: list[int]) -> int:
-    """Finds the next active page from the configured enabled page list."""
     if not enabled:
         return 1
     sorted_pages = sorted(enabled)
@@ -18,7 +17,8 @@ def get_next_enabled_page(current: int, enabled: list[int]) -> int:
     return sorted_pages[0]
 
 
-def get_moon_phase(date_obj: datetime) -> str:
+def get_moon_data(date_obj: datetime) -> tuple[str, int]:
+    """Calculates short phase abbreviation and approximate illumination percentage."""
     year, month, day = date_obj.year, date_obj.month, date_obj.day
     if month < 3:
         year -= 1
@@ -26,13 +26,14 @@ def get_moon_phase(date_obj: datetime) -> str:
     month += 1
     jd = (365.25 * year) + (30.6 * month) + day - 694039.09
     jd /= 29.5305882
-    phase_val = round((jd - int(jd)) * 8) % 8
+    frac = jd - int(jd)
+    phase_val = round(frac * 8) % 8
 
-    phases = [
-        "New Moon", "Waxing Cres", "First Qtr", "Waxing Gibb",
-        "Full Moon", "Waning Gibb", "Third Qtr", "Waning Cres"
-    ]
-    return phases[phase_val]
+    # Illumination calculation approximation (0% to 100%)
+    illumination = int((1 - abs((frac * 2) - 1)) * 100)
+
+    short_phases = ["NM", "WC", "FQ", "WG", "FM", "WdG", "TQ", "WnC"]
+    return short_phases[phase_val], illumination
 
 
 def render_widget_clock(snap: AppStateModel) -> tuple[str, str]:
@@ -48,11 +49,11 @@ def render_widget_indoor(snap: AppStateModel) -> tuple[str, str]:
     if calibrated_temp is None:
         comfort = "Offline"
     elif calibrated_temp > 28:
-        comfort = "Hot :("
+        comfort = "Hot"
     elif calibrated_temp < 18:
-        comfort = "Cold :("
+        comfort = "Cold"
     else:
-        comfort = "Comfort :)"
+        comfort = "Comfort"
 
     return f"In: {t_str} H:{h_str}", f"State: {comfort}"
 
@@ -70,15 +71,15 @@ def render_widget_aqi(snap: AppStateModel) -> tuple[str, str]:
     raw_status = (snap.aqi_status or "").lower()
 
     if "unhealthy" in raw_status or "hazardous" in raw_status or raw_status == "bad":
-        status_text = "Bad :("
+        status_text = "Bad"
     elif "moderate" in raw_status:
         status_text = "Moderate"
     elif "good" in raw_status:
-        status_text = "Good :)"
+        status_text = "Good"
     else:
         status_text = snap.aqi_status.capitalize() if snap.aqi_status else "N/A"
 
-    return f"AQI: {snap.aqi_val} ({status_text})", f"P2.5:{snap.pm2_5_val} P10:{snap.pm10_val}"
+    return f"AQI: {snap.aqi_val} {status_text}", f"P2.5:{snap.pm2_5_val} P10:{snap.pm10_val}"
 
 
 def render_widget_pi(snap: AppStateModel) -> tuple[str, str]:
@@ -86,15 +87,16 @@ def render_widget_pi(snap: AppStateModel) -> tuple[str, str]:
 
 
 def render_widget_moon(snap: AppStateModel) -> tuple[str, str]:
-    phase = get_moon_phase(datetime.now())
-    return "Moon Phase:", f"{phase}".center(16)
+    """Moon phase short form + illumination fit cleanly onto 16x2."""
+    phase_code, illum = get_moon_data(datetime.now())
+    return "Moon Phase:", f"Phase: {phase_code} {illum}% Lit"
 
 
 def render_widget_uptime(snap: AppStateModel) -> tuple[str, str]:
     elapsed_sec = int(time.time() - START_TIME)
     hours = elapsed_sec // 3600
     minutes = (elapsed_sec % 3600) // 60
-    wifi_str = "Offline :(" if snap.wifi_error else "Online :)"
+    wifi_str = "Offline" if snap.wifi_error else "Online"
 
     return f"Uptime: {hours}h {minutes}m", f"Wi-Fi: {wifi_str}"
 
@@ -105,24 +107,24 @@ def render_widget_settings(snap: AppStateModel) -> tuple[str, str]:
     header = f"Settings [{idx + 1}/{total}]"
 
     if idx == 0:
-        line2 = f"> Unit: [{snap.temp_unit}]"
+        line2 = f"> Unit: {snap.temp_unit}"
     elif idx == 1:
-        line2 = f"> Buzzer: [{snap.buzzer_mode}]"
+        line2 = f"> Buzzer: {snap.buzzer_mode}"
     elif idx == 2:
         log_m = int(snap.log_interval / 60)
-        line2 = f"> Log Rate: [{log_m}m]"
+        line2 = f"> Log Rate: {log_m}m"
     elif idx == 3:
         api_m = int(snap.api_fetch_interval / 60)
-        line2 = f"> API Rate: [{api_m}m]"
+        line2 = f"> API Rate: {api_m}m"
     elif idx == 4:
         sign = "+" if snap.temp_offset > 0 else ""
-        line2 = f"> Offset: [{sign}{snap.temp_offset:.1f}C]"
+        line2 = f"> Offset: {sign}{snap.temp_offset:.1f}C"
     elif idx == 5:
         mode_str = "ON" if snap.night_mode else "OFF"
-        line2 = f"> NightMode: [{mode_str}]"
+        line2 = f"> NightMode: {mode_str}"
     elif idx == 6:
         pages_count = len(snap.enabled_pages)
-        line2 = f"> ActivePages:[{pages_count}/7]"
+        line2 = f"> ActivePages:{pages_count}/7"
     elif idx == 7:
         line2 = "> Reset Settings"
     else:

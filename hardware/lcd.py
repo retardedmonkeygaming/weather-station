@@ -1,4 +1,4 @@
-"""HD44780 LCD Hardware Driver with Custom Matrix Emojis."""
+"""HD44780 LCD Hardware Driver with Your Custom Matrix Emojis."""
 import traceback
 import board
 import digitalio
