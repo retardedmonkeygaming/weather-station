@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Weather Station{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <h1>Weather Station</h1>
+    <div class="nav-header">
+        <a href="/">📊 Dashboard</a>
+        <a href="/designer">🎨 UI Designer</a>
+        <a href="/settings">⚙️ Settings</a>
+        <a href="/logs">📜 Logs</a>
+    </div>
+
+    {% block content %}{% endblock %}
+</body>
+</html>

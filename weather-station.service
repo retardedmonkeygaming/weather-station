@@ -1,0 +1,15 @@
+[Unit]
+Description=Raspberry Pi Weather Station & Web UI
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/vxprxx/weather-station
+ExecStart=/vxprxx/weather-station/venv/bin/python -m weather_station.main
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
