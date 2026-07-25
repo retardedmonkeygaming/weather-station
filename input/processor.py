@@ -3,8 +3,8 @@ import asyncio
 import os
 import time
 from gpiozero import Button
-from weather_station.core.state import state
-from weather_station.hardware.pins import TOUCH_PIN
+from core.state import state
+from hardware.pins import TOUCH_PIN
 
 
 async def process_touch_input(lcd_driver, buzzer):
@@ -49,13 +49,11 @@ async def process_touch_input(lcd_driver, buzzer):
             snap = state.get_snapshot_sync()
 
             if press_count == 1:
-                # Cycle display page
                 next_page = (snap.current_page % snap.total_pages) + 1
                 await state.update(current_page=next_page)
                 buzzer.beep(on_time=0.05, off_time=0.05, n=1)
 
             elif press_count == 3:
-                # Toggle Settings Mode
                 new_mode = not snap.in_settings_mode
                 await state.update(in_settings_mode=new_mode)
                 buzzer.beep(on_time=0.08, off_time=0.08, n=2)

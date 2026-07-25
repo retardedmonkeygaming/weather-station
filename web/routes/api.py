@@ -1,13 +1,11 @@
-"""REST & JSON API Routes."""
 from datetime import datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from weather_station.core.state import state
-from weather_station.persistence.database import save_setting
-from weather_station.utils.formatting import format_temp
+from core.state import state
+from persistence.database import save_setting
+from utils.formatting import format_temp
 
 router = APIRouter(prefix="/api")
-
 
 @router.get("/data")
 async def get_live_data():
@@ -36,7 +34,6 @@ async def get_live_data():
         "date": datetime.now().strftime("%Y-%m-%d")
     })
 
-
 @router.post("/save-page")
 async def save_page(request: Request):
     body = await request.json()
@@ -49,7 +46,6 @@ async def save_page(request: Request):
 
     await save_setting(f"custom_page_{page_id}", widget_type)
     return JSONResponse({"status": "success", "page_id": page_id, "widget": widget_type})
-
 
 @router.post("/delete-page")
 async def delete_page(request: Request):

@@ -1,6 +1,6 @@
 """LCD 16x2 Text Rendering Widgets."""
-from weather_station.core.state import AppStateModel
-from weather_station.utils.formatting import format_temp
+from core.state import AppStateModel
+from utils.formatting import format_temp
 
 def render_widget_indoor(snap: AppStateModel) -> tuple[str, str]:
     t_str = format_temp(snap.indoor_temp, snap.temp_unit)

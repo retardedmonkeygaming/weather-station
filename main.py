@@ -1,18 +1,24 @@
 """Main Supervisor Routine & Hardware Task Loop."""
 import asyncio
+import sys
+import os
+
+# Ensure current working directory is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import uvicorn
-from weather_station.app import create_app
-from weather_station.config.schema import load_config
-from weather_station.core.state import state
-from weather_station.display.manager import DisplayManager
-from weather_station.hardware.buzzer import get_buzzer
-from weather_station.hardware.dht import DHTSensor
-from weather_station.hardware.lcd import LCDDriver
-from weather_station.input.processor import process_touch_input
-from weather_station.persistence.database import init_db, log_sensor_data
-from weather_station.services.system_stats import get_pi_stats
-from weather_station.services.weather_api import fetch_weather_and_aqi
-from weather_station.utils.logging_setup import setup_logging
+from app import create_app
+from config.schema import load_config
+from core.state import state
+from display.manager import DisplayManager
+from hardware.buzzer import get_buzzer
+from hardware.dht import DHTSensor
+from hardware.lcd import LCDDriver
+from input.processor import process_touch_input
+from persistence.database import init_db, log_sensor_data
+from services.system_stats import get_pi_stats
+from services.weather_api import fetch_weather_and_aqi
+from utils.logging_setup import setup_logging
 
 logger = setup_logging()
 cfg = load_config()

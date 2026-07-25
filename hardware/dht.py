@@ -1,7 +1,7 @@
 """DHT11 Temperature & Humidity Sensor Interface."""
 import board
 import adafruit_dht
-from weather_station.hardware.pins import DHT_PIN
+from hardware.pins import DHT_PIN
 
 class DHTSensor:
     def __init__(self):
@@ -9,7 +9,6 @@ class DHTSensor:
         self._sensor = adafruit_dht.DHT11(pin_attr)
 
     def read(self):
-        """Returns tuple (temperature_c, humidity) or raises RuntimeError on failure."""
         temp = self._sensor.temperature
         humid = self._sensor.humidity
         if temp is None or humid is None:

@@ -1,12 +1,10 @@
-"""Database Logs View Route."""
 import aiosqlite
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from weather_station.persistence.database import DB_FILE
-from weather_station.web.dependencies import templates
+from persistence.database import DB_FILE
+from web.dependencies import templates
 
 router = APIRouter()
-
 
 @router.get("/logs", response_class=HTMLResponse)
 async def get_logs(request: Request):

@@ -2,7 +2,7 @@
 import board
 import digitalio
 import adafruit_character_lcd.character_lcd as character_lcd
-from weather_station.hardware.pins import (
+from hardware.pins import (
     LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7, LCD_COLUMNS, LCD_ROWS
 )
 
@@ -20,7 +20,6 @@ class LCDDriver:
         )
 
     def write_lines(self, line1: str, line2: str):
-        # Truncate/pad to exactly 16 characters per line
         l1 = line1[:16].ljust(16)
         l2 = line2[:16].ljust(16)
         self.lcd.message = f"{l1}\n{l2}"
