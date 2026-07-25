@@ -1,7 +1,7 @@
 """Main Supervisor Routine & Hardware Task Loop."""
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -15,14 +15,11 @@ from hardware.dht import DHTSensor
 from hardware.lcd import LCDDriver
 from input.processor import process_touch_input
 from persistence.database import init_db, load_all_settings, log_sensor_data
+from services.notifications import check_alerts_loop
 from services.system_stats import get_pi_stats
 from services.weather_api import fetch_weather_and_aqi
 from utils.logging_setup import setup_logging
 from web.routes import api, dashboard, designer
-
-app.include_router(api.router)
-app.include_router(dashboard.router)
-app.include_router(designer.router)
 
 logger = setup_logging()
 cfg = load_config()
@@ -87,17 +84,33 @@ async def main():
     await init_db(cfg.db_file)
 
     saved_settings = await load_all_settings(cfg.db_file)
-    await state.update(
-        temp_unit=saved_settings.get("temp_unit", "C"),
-        buzzer_mode=saved_settings.get("buzzer_mode", "ALL"),
-        auto_scroll_speed=int(saved_settings.get("auto_scroll_speed", "3")),
-        alarm_enabled=(saved_settings.get("alarm_enabled") == "True")
-    )
+    updates = {}
+    
+    for k, v in saved_settings.items():
+        if k in ["temp_offset", "high_temp_threshold", "low_temp_threshold"]:
+            updates[k] = float(v)
+        elif k in ["log_interval", "api_fetch_interval", "auto_scroll_speed"]:
+            updates[k] = int(v)
+        elif k == "night_mode":
+            updates[k] = v.lower() == "true"
+        elif k == "alarm_enabled":
+            updates[k] = v.lower() == "true"
+        elif k == "enabled_pages":
+            updates[k] = [int(p) for p in v.split(",") if p.isdigit()]
+        else:
+            updates[k] = v
+
+    await state.update(**updates)
 
     logger.info("Running hardware diagnostics & startup screens...")
     await display_mgr.run_diagnostics_and_boot(dht, buzzer)
 
+    # Initialize Application & Include Web/API Routers
     app = create_app()
+    app.include_router(api.router)
+    app.include_router(dashboard.router)
+    app.include_router(designer.router)
+
     server_config = uvicorn.Config(app, host=cfg.web_host, port=cfg.web_port, log_level="warning")
     server = uvicorn.Server(server_config)
 
@@ -109,6 +122,7 @@ async def main():
         safe_task(weather_api_task, "Weather API"),
         safe_task(stats_task, "Pi Stats"),
         safe_task(db_logging_task, "DB Logger"),
+        safe_task(check_alerts_loop, "Alert Notifications"),
         safe_task(lambda: process_touch_input(lcd, buzzer), "Touch Input"),
     )
 
