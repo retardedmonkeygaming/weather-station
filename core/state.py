@@ -33,7 +33,7 @@ class AppStateModel(BaseModel):
     # Active LCD State
     last_lcd_rendered_text: List[str] = Field(default_factory=lambda: ["Initializing...", "Please wait"])
     current_page: int = 1
-    total_pages: int = 5
+    total_pages: int = 7
     in_settings_mode: bool = False
     settings_page_index: int = 0
     total_settings_count: int = 7
