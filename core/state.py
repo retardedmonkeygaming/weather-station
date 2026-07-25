@@ -30,13 +30,13 @@ class AppStateModel(BaseModel):
     pi_cpu_usage: str = "N/A"
     pi_ram_usage: str = "N/A"
     
-    # Active LCD State
+    # Active LCD State & Page Configuration
     last_lcd_rendered_text: List[str] = Field(default_factory=lambda: ["Initializing...", "Please wait"])
     current_page: int = 1
-    total_pages: int = 7
+    enabled_pages: List[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5, 6, 7])
     in_settings_mode: bool = False
     settings_page_index: int = 0
-    total_settings_count: int = 7
+    total_settings_count: int = 8
     
     # Settings
     temp_unit: str = "C"

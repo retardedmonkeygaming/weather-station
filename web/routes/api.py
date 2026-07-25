@@ -1,58 +1,87 @@
-from datetime import datetime
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+"""API Endpoints for Telemetry, Settings, Page Visibility, and Logs."""
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from typing import List, Dict, Any
 from core.state import state
-from persistence.database import save_setting
-from utils.formatting import format_temp
+from persistence.database import save_setting, factory_reset_db, DB_FILE
+import aiosqlite
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=["api"])
+
+
+class SettingsUpdateModel(BaseModel):
+    temp_unit: str | None = None
+    buzzer_mode: str | None = None
+    log_interval: int | None = None
+    api_fetch_interval: int | None = None
+    temp_offset: float | None = None
+    night_mode: bool | None = None
+    enabled_pages: List[int] | None = None
+
 
 @router.get("/data")
-async def get_live_data():
-    snap = state.get_snapshot_sync()
-    return JSONResponse({
-        "indoor_temp": format_temp(snap.indoor_temp, snap.temp_unit),
-        "indoor_humid": f"{snap.indoor_humid:.1f}%" if snap.indoor_humid else "N/A",
-        "outdoor_temp": format_temp(snap.outdoor_temp, snap.temp_unit),
-        "outdoor_humid": f"{snap.outdoor_humid}%" if snap.outdoor_humid else "N/A",
-        "outdoor_min": format_temp(snap.outdoor_min, snap.temp_unit),
-        "outdoor_max": format_temp(snap.outdoor_max, snap.temp_unit),
-        "uv_current": str(snap.uv_current),
-        "uv_max": str(snap.uv_max),
-        "aqi": snap.aqi_val,
-        "aqi_status": snap.aqi_status,
-        "pm2_5": snap.pm2_5_val,
-        "pm10": snap.pm10_val,
-        "dht_status": "OFFLINE" if snap.dht_error else "ONLINE",
-        "wifi_status": "DISCONNECTED" if snap.wifi_error else "CONNECTED",
-        "pi_cpu_temp": snap.pi_cpu_temp,
-        "pi_cpu_usage": snap.pi_cpu_usage,
-        "pi_ram_usage": snap.pi_ram_usage,
-        "lcd_line1": snap.last_lcd_rendered_text[0],
-        "lcd_line2": snap.last_lcd_rendered_text[1],
-        "time": datetime.now().strftime("%H:%M:%S"),
-        "date": datetime.now().strftime("%Y-%m-%d")
-    })
+async def get_sensor_data():
+    """Returns current live application state snapshot."""
+    snap = await state.get_snapshot()
+    return snap.model_dump()
 
-@router.post("/save-page")
-async def save_page(request: Request):
-    body = await request.json()
-    page_id = int(body.get("page_id", 1))
-    widget_type = str(body.get("widget_type", ""))
 
-    state.custom_lcd_pages[page_id] = widget_type
-    if page_id > state._data.total_pages:
-        await state.update(total_pages=page_id)
+@router.post("/settings")
+async def update_settings(payload: SettingsUpdateModel):
+    """Updates system settings and persists changes instantly."""
+    updates = {}
+    if payload.temp_unit is not None:
+        updates["temp_unit"] = payload.temp_unit
+        await save_setting("temp_unit", payload.temp_unit)
 
-    await save_setting(f"custom_page_{page_id}", widget_type)
-    return JSONResponse({"status": "success", "page_id": page_id, "widget": widget_type})
+    if payload.buzzer_mode is not None:
+        updates["buzzer_mode"] = payload.buzzer_mode
+        await save_setting("buzzer_mode", payload.buzzer_mode)
 
-@router.post("/delete-page")
-async def delete_page(request: Request):
-    body = await request.json()
-    page_id = int(body.get("page_id", 1))
+    if payload.log_interval is not None:
+        updates["log_interval"] = payload.log_interval
+        await save_setting("log_interval", payload.log_interval)
 
-    if page_id in state.custom_lcd_pages:
-        del state.custom_lcd_pages[page_id]
+    if payload.api_fetch_interval is not None:
+        updates["api_fetch_interval"] = payload.api_fetch_interval
+        await save_setting("api_fetch_interval", payload.api_fetch_interval)
 
-    return JSONResponse({"status": "deleted", "page_id": page_id})
+    if payload.temp_offset is not None:
+        updates["temp_offset"] = payload.temp_offset
+        await save_setting("temp_offset", payload.temp_offset)
+
+    if payload.night_mode is not None:
+        updates["night_mode"] = payload.night_mode
+        await save_setting("night_mode", payload.night_mode)
+
+    if payload.enabled_pages is not None:
+        updates["enabled_pages"] = payload.enabled_pages
+        await save_setting("enabled_pages", ",".join(map(str, payload.enabled_pages)))
+
+    await state.update(**updates)
+    return {"status": "success", "updated": updates}
+
+
+@router.get("/history")
+async def get_historical_logs(limit: int = Query(default=50, le=500)):
+    """Returns historical database logs for Chart.js rendering."""
+    async with aiosqlite.connect(DB_FILE) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT timestamp, indoor_temp, indoor_humid, outdoor_temp, outdoor_humid, uv_index, aqi FROM sensor_logs ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in reversed(rows)]
+
+
+@router.post("/reset")
+async def reset_system_settings():
+    """Factory reset settings endpoint."""
+    await factory_reset_db()
+    await state.update(
+        temp_unit="C", buzzer_mode="ALL", log_interval=300,
+        api_fetch_interval=600, temp_offset=0.0, night_mode=False,
+        enabled_pages=[1, 2, 3, 4, 5, 6, 7]
+    )
+    return {"status": "reset_complete"}

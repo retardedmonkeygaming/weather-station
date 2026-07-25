@@ -4,6 +4,7 @@ import os
 import time
 from gpiozero import Button
 from core.state import state
+from display.widgets import get_next_enabled_page
 from hardware.pins import TOUCH_PIN
 from persistence.database import save_setting, factory_reset_db
 
@@ -42,56 +43,29 @@ async def process_touch_input(lcd_driver, buzzer):
                 duration = now - hold_start_time
                 hold_start_time = None
 
-                # Short hold inside Settings mode toggles selected row value
                 if 1.0 <= duration < 4.0:
                     snap = state.get_snapshot_sync()
                     if snap.in_settings_mode:
                         idx = snap.settings_page_index
-                        
-                        if idx == 0:  # Temp Unit
+                        if idx == 0:
                             new_val = "F" if snap.temp_unit == "C" else "C"
                             await state.update(temp_unit=new_val)
                             await save_setting("temp_unit", new_val)
-                            
-                        elif idx == 1:  # Buzzer Mode
+                        elif idx == 1:
                             modes = ["ALL", "ERR", "MUTE"]
                             next_m = modes[(modes.index(snap.buzzer_mode) + 1) % len(modes)]
                             await state.update(buzzer_mode=next_m)
                             await save_setting("buzzer_mode", next_m)
-                            
-                        elif idx == 2:  # Log Interval (60s, 300s, 900s, 3600s)
-                            opts = [60, 300, 900, 3600]
-                            next_val = opts[(opts.index(snap.log_interval) if snap.log_interval in opts else 1 + 1) % len(opts)]
-                            await state.update(log_interval=next_val)
-                            await save_setting("log_interval", next_val)
-                            
-                        elif idx == 3:  # API Fetch Rate (300s, 600s, 1800s)
-                            opts = [300, 600, 1800]
-                            next_val = opts[(opts.index(snap.api_fetch_interval) if snap.api_fetch_interval in opts else 1 + 1) % len(opts)]
-                            await state.update(api_fetch_interval=next_val)
-                            await save_setting("api_fetch_interval", next_val)
-                            
-                        elif idx == 4:  # Temp Offset (-2.0 to +2.0 in 0.5 steps)
-                            offsets = [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0]
-                            cur = round(snap.temp_offset, 1)
-                            next_off = offsets[(offsets.index(cur) if cur in offsets else 4 + 1) % len(offsets)]
-                            await state.update(temp_offset=next_off)
-                            await save_setting("temp_offset", next_off)
-                            
-                        elif idx == 5:  # Night Mode
-                            next_nm = not snap.night_mode
-                            await state.update(night_mode=next_nm)
-                            await save_setting("night_mode", next_nm)
-                            
-                        elif idx == 6:  # Factory Reset
+                        elif idx == 7:
                             lcd_driver.write_lines("Factory Reset", "Resetting...")
                             await factory_reset_db()
                             await state.update(
                                 temp_unit="C", buzzer_mode="ALL", log_interval=300,
-                                api_fetch_interval=600, temp_offset=0.0, night_mode=False
+                                api_fetch_interval=600, temp_offset=0.0, night_mode=False,
+                                enabled_pages=[1, 2, 3, 4, 5, 6, 7]
                             )
                             buzzer.beep(on_time=0.2, off_time=0.1, n=3)
-                            
+
                         buzzer.beep(on_time=0.15, off_time=0.1, n=1)
 
                 elif duration < 0.5:
@@ -106,7 +80,7 @@ async def process_touch_input(lcd_driver, buzzer):
                     next_idx = (snap.settings_page_index + 1) % snap.total_settings_count
                     await state.update(settings_page_index=next_idx)
                 else:
-                    next_page = (snap.current_page % snap.total_pages) + 1
+                    next_page = get_next_enabled_page(snap.current_page, snap.enabled_pages)
                     await state.update(current_page=next_page)
                 
                 buzzer.beep(on_time=0.08, off_time=0.08, n=1)
