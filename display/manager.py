@@ -21,7 +21,7 @@ class DisplayManager:
         total_steps = 16
         
         for i in range(1, total_steps + 1):
-            bar = "█" * i + " " * (total_steps - i)
+            bar = "#" * i + " " * (total_steps - i)
             self.lcd.write_lines(loading_text.center(16), bar)
             await asyncio.sleep(0.08)
             
