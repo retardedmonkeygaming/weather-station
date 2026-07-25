@@ -35,6 +35,7 @@ class AppStateModel(BaseModel):
     current_page: int = 1
     total_pages: int = 5
     in_settings_mode: bool = False
+    settings_page_index: int = 0
     
     # Settings
     temp_unit: str = "C"
@@ -69,5 +70,4 @@ class AppState:
         return self._data.model_copy()
 
 
-# Global state singleton instance
 state = AppState()

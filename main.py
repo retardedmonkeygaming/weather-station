@@ -80,8 +80,7 @@ async def safe_task(coro_func, task_name: str):
 async def main():
     logger.info("Initializing Database...")
     await init_db(cfg.db_file)
-    
-    # Restore saved settings from database
+
     saved_settings = await load_all_settings(cfg.db_file)
     await state.update(
         temp_unit=saved_settings.get("temp_unit", "C"),
@@ -90,11 +89,9 @@ async def main():
         alarm_enabled=(saved_settings.get("alarm_enabled") == "True")
     )
 
-    # Boot Loading Sequence with Beeps
-    logger.info("Executing boot loading screen sequence...")
-    await display_mgr.run_loading_sequence(buzzer)
+    logger.info("Running hardware diagnostics & startup screens...")
+    await display_mgr.run_diagnostics_and_boot(dht, buzzer)
 
-    # Launch Web App Uvicorn Task
     app = create_app()
     server_config = uvicorn.Config(app, host=cfg.web_host, port=cfg.web_port, log_level="warning")
     server = uvicorn.Server(server_config)
