@@ -97,6 +97,15 @@ async def main():
             updates[k] = v.lower() == "true"
         elif k == "enabled_pages":
             updates[k] = [int(p) for p in v.split(",") if p.isdigit()]
+        elif k == "page_widget_map":
+            try:
+                import json
+                raw = json.loads(v)
+                # normalize keys to ints
+                updates[k] = {int(kk): int(vv) for kk, vv in (raw.items() if isinstance(raw, dict) else {})}
+            except Exception:
+                # fallback to numeric mapping if malformed
+                updates[k] = {i: i for i in range(1, 8)}
         else:
             updates[k] = v
 

@@ -20,6 +20,9 @@ DEFAULT_SETTINGS = {
     "low_temp_threshold": "5.0",
     "webhook_url": "",
     "enabled_pages": "1,2,3,4,5,6,7"
+    ,
+    # default mapping: page slot -> widget id
+    "page_widget_map": "{\"1\":1, \"2\":2, \"3\":3, \"4\":4, \"5\":5, \"6\":6, \"7\":7}"
 }
 
 
