@@ -1,4 +1,4 @@
-"""Responsive Web Dashboard with Simulated LCD, Charts, and Extended Settings Configurator."""
+"""Responsive Web Dashboard featuring Live LCD, Interactive Charts, Settings, and UI Designer."""
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -22,7 +22,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
         header { background: var(--primary); color: white; padding: 15px 20px; text-align: center; font-size: 1.4rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .container { max-width: 1000px; margin: 20px auto; padding: 0 15px; grid-gap: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .container { max-width: 1100px; margin: 20px auto; padding: 0 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
         .card { background: var(--card-bg); border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
         .card h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eef2f5; padding-bottom: 8px; }
         
@@ -31,12 +31,12 @@ HTML_CONTENT = """<!DOCTYPE html>
         .lcd-line { white-space: pre; }
 
         /* Form & Settings Controls */
-        label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 0.9rem; }
-        select, input[type="number"] { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .checkbox-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+        label { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 0.85rem; }
+        select, input[type="number"], input[type="text"] { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .checkbox-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-top: 15px; width: 100%; font-weight: bold; }
         .btn:hover { opacity: 0.9; }
-        .btn-danger { background: #d32f2f; }
+        .btn-danger { background: #d32f2f; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -49,7 +49,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div id="lcd-line1" class="lcd-line">Initializing...</div>
                 <div id="lcd-line2" class="lcd-line">Please wait</div>
             </div>
-            <p style="font-size:0.85rem; color:#666; margin-top:10px;">Active LCD Page: <span id="current-page-num">1</span>/7</p>
+            <p style="font-size:0.85rem; color:#666; margin-top:10px;">Active Page: <span id="current-page-num">1</span>/7</p>
         </div>
 
         <div class="card">
@@ -62,7 +62,22 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
 
         <div class="card">
-            <h3>⚙️ System Settings</h3>
+            <h3>🎨 LCD UI Designer</h3>
+            <label>Enable / Disable LCD Pages</label>
+            <div class="checkbox-group">
+                <label><input type="checkbox" class="page-cb" value="1" checked> 1: Clock</label>
+                <label><input type="checkbox" class="page-cb" value="2" checked> 2: Indoor</label>
+                <label><input type="checkbox" class="page-cb" value="3" checked> 3: Outdoor</label>
+                <label><input type="checkbox" class="page-cb" value="4" checked> 4: AQI</label>
+                <label><input type="checkbox" class="page-cb" value="5" checked> 5: Pi System</label>
+                <label><input type="checkbox" class="page-cb" value="6" checked> 6: Moon Phase</label>
+                <label><input type="checkbox" class="page-cb" value="7" checked> 7: Uptime</label>
+            </div>
+            <button class="btn" onclick="saveUIConfig()">Save Layout Design</button>
+        </div>
+
+        <div class="card">
+            <h3>⚙️ Settings & Alerts</h3>
             <label for="set-unit">Temperature Unit</label>
             <select id="set-unit">
                 <option value="C">Celsius (°C)</option>
@@ -76,28 +91,16 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <option value="MUTE">Mute All Audio</option>
             </select>
 
-            <label for="set-log-rate">Database Logging Interval</label>
-            <select id="set-log-rate">
-                <option value="60">1 Minute</option>
-                <option value="300">5 Minutes</option>
-                <option value="900">15 Minutes</option>
-            </select>
+            <label for="set-high-alert">High Temp Alert Threshold (°C)</label>
+            <input type="number" id="set-high-alert" step="0.5">
 
-            <label for="set-offset">Sensor Temp Offset (°C)</label>
-            <input type="number" id="set-offset" step="0.5" min="-5" max="5">
+            <label for="set-low-alert">Low Temp Alert Threshold (°C)</label>
+            <input type="number" id="set-low-alert" step="0.5">
 
-            <label>Active LCD Pages (Toggle Page Skipping)</label>
-            <div class="checkbox-group">
-                <label><input type="checkbox" class="page-cb" value="1" checked> 1: Clock</label>
-                <label><input type="checkbox" class="page-cb" value="2" checked> 2: Indoor</label>
-                <label><input type="checkbox" class="page-cb" value="3" checked> 3: Outdoor</label>
-                <label><input type="checkbox" class="page-cb" value="4" checked> 4: AQI</label>
-                <label><input type="checkbox" class="page-cb" value="5" checked> 5: Pi System</label>
-                <label><input type="checkbox" class="page-cb" value="6" checked> 6: Moon Phase</label>
-                <label><input type="checkbox" class="page-cb" value="7" checked> 7: Uptime</label>
-            </div>
+            <label for="set-webhook">Webhook URL (Discord/Telegram)</label>
+            <input type="text" id="set-webhook" placeholder="https://discord.com/api/webhooks/...">
 
-            <button class="btn" onclick="saveWebSettings()">Save Settings</button>
+            <button class="btn" onclick="saveWebSettings()">Save Configuration</button>
             <button class="btn btn-danger" onclick="factoryReset()">Factory Reset</button>
         </div>
 
@@ -115,20 +118,17 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const res = await fetch('/api/data');
                 const data = await res.json();
                 
-                // Update LCD Simulation
                 if (data.last_lcd_rendered_text && data.last_lcd_rendered_text.length >= 2) {
                     document.getElementById('lcd-line1').innerText = data.last_lcd_rendered_text[0];
                     document.getElementById('lcd-line2').innerText = data.last_lcd_rendered_text[1];
                 }
                 document.getElementById('current-page-num').innerText = data.current_page;
 
-                // Update Metrics
-                document.getElementById('val-in-temp').innerText = data.indoor_temp ? `${data.indoor_temp.toFixed(1)}°${data.temp_unit}` : 'N/A';
+                document.getElementById('val-in-temp').innerText = data.indoor_temp ? `${data.indoor_temp.toFixed(1)}${data.temp_unit}` : 'N/A';
                 document.getElementById('val-in-hum').innerText = data.indoor_humid ? `${data.indoor_humid.toFixed(0)}%` : 'N/A';
-                document.getElementById('val-out-temp').innerText = data.outdoor_temp ? `${data.outdoor_temp.toFixed(1)}°${data.temp_unit}` : 'N/A';
+                document.getElementById('val-out-temp').innerText = data.outdoor_temp ? `${data.outdoor_temp.toFixed(1)}${data.temp_unit}` : 'N/A';
                 document.getElementById('val-out-hum').innerText = data.outdoor_humid ? `${data.outdoor_humid.toFixed(0)}%` : 'N/A';
                 document.getElementById('val-aqi').innerText = `${data.aqi_val} (${data.aqi_status})`;
-
             } catch (e) { console.error('Error fetching data', e); }
         }
 
@@ -137,8 +137,9 @@ HTML_CONTENT = """<!DOCTYPE html>
             const data = await res.json();
             document.getElementById('set-unit').value = data.temp_unit;
             document.getElementById('set-buzzer').value = data.buzzer_mode;
-            document.getElementById('set-log-rate').value = data.log_interval;
-            document.getElementById('set-offset').value = data.temp_offset;
+            document.getElementById('set-high-alert').value = data.high_temp_threshold || 35.0;
+            document.getElementById('set-low-alert').value = data.low_temp_threshold || 5.0;
+            document.getElementById('set-webhook').value = data.webhook_url || '';
             
             const activePages = data.enabled_pages || [1,2,3,4,5,6,7];
             document.querySelectorAll('.page-cb').forEach(cb => {
@@ -147,20 +148,29 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         async function saveWebSettings() {
-            const enabledPages = Array.from(document.querySelectorAll('.page-cb:checked')).map(cb => parseInt(cb.value));
             const payload = {
                 temp_unit: document.getElementById('set-unit').value,
                 buzzer_mode: document.getElementById('set-buzzer').value,
-                log_interval: parseInt(document.getElementById('set-log-rate').value),
-                temp_offset: parseFloat(document.getElementById('set-offset').value),
-                enabled_pages: enabledPages
+                high_temp_threshold: parseFloat(document.getElementById('set-high-alert').value),
+                low_temp_threshold: parseFloat(document.getElementById('set-low-alert').value),
+                webhook_url: document.getElementById('set-webhook').value
             };
             await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            alert('Settings saved successfully!');
+            alert('Settings and alerts saved successfully!');
+        }
+
+        async function saveUIConfig() {
+            const enabledPages = Array.from(document.querySelectorAll('.page-cb:checked')).map(cb => parseInt(cb.value));
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled_pages: enabledPages })
+            });
+            alert('LCD layout designer configuration saved!');
         }
 
         async function factoryReset() {
@@ -183,8 +193,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                 data: {
                     labels: labels,
                     datasets: [
-                        { label: 'Indoor Temp (°C)', data: inTemps, borderColor: '#0288d1', fill: false },
-                        { label: 'Outdoor Temp (°C)', data: outTemps, borderColor: '#e65100', fill: false }
+                        { label: 'Indoor Temp', data: inTemps, borderColor: '#0288d1', fill: false },
+                        { label: 'Outdoor Temp', data: outTemps, borderColor: '#e65100', fill: false }
                     ]
                 }
             });

@@ -1,4 +1,4 @@
-"""Database initialization, settings persistence, and sensor history logging."""
+"""Database initialization, settings persistence, and custom layouts."""
 import aiosqlite
 from typing import Dict, Any
 
@@ -16,8 +16,10 @@ DEFAULT_SETTINGS = {
     "temp_offset": "0.0",
     "humid_offset": "0.0",
     "night_mode": "False",
-    "high_temp_alert": "35.0",
-    "low_temp_alert": "10.0"
+    "high_temp_threshold": "35.0",
+    "low_temp_threshold": "5.0",
+    "webhook_url": "",
+    "enabled_pages": "1,2,3,4,5,6,7"
 }
 
 
@@ -73,7 +75,6 @@ async def load_all_settings(db_path: str = DB_FILE) -> Dict[str, str]:
 
 
 async def factory_reset_db(db_path: str = DB_FILE):
-    """Resets all settings back to default values."""
     async with aiosqlite.connect(db_path) as db:
         await db.execute("DELETE FROM settings")
         for key, val in DEFAULT_SETTINGS.items():

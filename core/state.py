@@ -1,4 +1,4 @@
-"""Central application state store."""
+"""Central application state store with alert thresholds."""
 import asyncio
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
@@ -49,9 +49,12 @@ class AppStateModel(BaseModel):
     api_fetch_interval: int = 600
     night_mode: bool = False
     
-    # Offsets
+    # Offsets & Alerts
     temp_offset: float = 0.0
     humid_offset: float = 0.0
+    high_temp_threshold: float = 35.0
+    low_temp_threshold: float = 5.0
+    webhook_url: str = ""
 
 
 class AppState:
