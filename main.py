@@ -18,6 +18,11 @@ from persistence.database import init_db, load_all_settings, log_sensor_data
 from services.system_stats import get_pi_stats
 from services.weather_api import fetch_weather_and_aqi
 from utils.logging_setup import setup_logging
+from web.routes import api, dashboard, designer
+
+app.include_router(api.router)
+app.include_router(dashboard.router)
+app.include_router(designer.router)
 
 logger = setup_logging()
 cfg = load_config()
