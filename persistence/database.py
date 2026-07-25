@@ -14,7 +14,10 @@ DEFAULT_SETTINGS = {
     "log_interval": "300",
     "api_fetch_interval": "600",
     "temp_offset": "0.0",
-    "humid_offset": "0.0"
+    "humid_offset": "0.0",
+    "night_mode": "False",
+    "high_temp_alert": "35.0",
+    "low_temp_alert": "10.0"
 }
 
 
@@ -45,7 +48,6 @@ async def init_db(db_path: str = DB_FILE):
             )
         """)
         
-        # Populate missing default settings
         for key, val in DEFAULT_SETTINGS.items():
             await db.execute(
                 "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
@@ -68,6 +70,18 @@ async def load_all_settings(db_path: str = DB_FILE) -> Dict[str, str]:
         async with db.execute("SELECT key, value FROM settings") as cursor:
             rows = await cursor.fetchall()
             return {row[0]: row[1] for row in rows}
+
+
+async def factory_reset_db(db_path: str = DB_FILE):
+    """Resets all settings back to default values."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute("DELETE FROM settings")
+        for key, val in DEFAULT_SETTINGS.items():
+            await db.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?)",
+                (key, val)
+            )
+        await db.commit()
 
 
 async def log_sensor_data(data: Dict[str, Any], db_path: str = DB_FILE):

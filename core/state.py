@@ -36,6 +36,7 @@ class AppStateModel(BaseModel):
     total_pages: int = 5
     in_settings_mode: bool = False
     settings_page_index: int = 0
+    total_settings_count: int = 7
     
     # Settings
     temp_unit: str = "C"
@@ -44,6 +45,9 @@ class AppStateModel(BaseModel):
     auto_scroll_speed: int = 3
     alarm_time: str = "07:00"
     alarm_enabled: bool = False
+    log_interval: int = 300
+    api_fetch_interval: int = 600
+    night_mode: bool = False
     
     # Offsets
     temp_offset: float = 0.0

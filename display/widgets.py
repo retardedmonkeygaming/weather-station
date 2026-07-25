@@ -12,15 +12,15 @@ def render_widget_clock(snap: AppStateModel) -> tuple[str, str]:
 
 
 def render_widget_indoor(snap: AppStateModel) -> tuple[str, str]:
-    t_str = format_temp(snap.indoor_temp, snap.temp_unit)
+    calibrated_temp = snap.indoor_temp + snap.temp_offset if snap.indoor_temp is not None else None
+    t_str = format_temp(calibrated_temp, snap.temp_unit)
     h_str = f"{snap.indoor_humid:.0f}%" if snap.indoor_humid is not None else "N/A"
     
-    # State condition evaluation with proper Title-Case strings
-    if snap.indoor_temp is None:
+    if calibrated_temp is None:
         comfort = "Offline"
-    elif snap.indoor_temp > 28:
+    elif calibrated_temp > 28:
         comfort = "Hot"
-    elif snap.indoor_temp < 18:
+    elif calibrated_temp < 18:
         comfort = "Cold"
     else:
         comfort = "Comfort"
@@ -55,18 +55,33 @@ def render_widget_pi(snap: AppStateModel) -> tuple[str, str]:
 
 
 def render_widget_settings(snap: AppStateModel) -> tuple[str, str]:
-    """Scrollable row-based settings interface."""
-    setting_index = snap.settings_page_index  # 0: Temp Unit, 1: Buzzer Mode
-    total_settings = 2
+    """Scrollable row-based settings interface for 7 settings."""
+    idx = snap.settings_page_index
+    total = snap.total_settings_count
+    header = f"Settings [{idx + 1}/{total}]"
 
-    if setting_index == 0:
-        line1 = f"Settings [{setting_index + 1}/{total_settings}]"
+    if idx == 0:
         line2 = f"> Unit: [{snap.temp_unit}]"
-    else:
-        line1 = f"Settings [{setting_index + 1}/{total_settings}]"
+    elif idx == 1:
         line2 = f"> Buzzer: [{snap.buzzer_mode}]"
+    elif idx == 2:
+        log_m = int(snap.log_interval / 60)
+        line2 = f"> Log Rate: [{log_m}m]"
+    elif idx == 3:
+        api_m = int(snap.api_fetch_interval / 60)
+        line2 = f"> API Rate: [{api_m}m]"
+    elif idx == 4:
+        sign = "+" if snap.temp_offset > 0 else ""
+        line2 = f"> Offset: [{sign}{snap.temp_offset:.1f}C]"
+    elif idx == 5:
+        mode_str = "ON" if snap.night_mode else "OFF"
+        line2 = f"> NightMode: [{mode_str}]"
+    elif idx == 6:
+        line2 = "> Reset Settings"
+    else:
+        line2 = "> Exit"
 
-    return line1, line2
+    return header, line2
 
 
 WIDGET_MAP = {
