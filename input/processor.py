@@ -67,20 +67,18 @@ async def process_touch_input(lcd_driver, buzzer):
 
             if press_count == 1:
                 if snap.in_settings_mode:
-                    # Scroll through settings rows
                     next_idx = (snap.settings_page_index + 1) % 2
                     await state.update(settings_page_index=next_idx)
                 else:
-                    # Advance page
                     next_page = (snap.current_page % snap.total_pages) + 1
                     await state.update(current_page=next_page)
                 
                 buzzer.beep(on_time=0.08, off_time=0.08, n=1)
 
             elif press_count == 3:
-                # Toggle Settings Mode
+                # Toggle Settings Mode with 3 beeps
                 new_mode = not snap.in_settings_mode
                 await state.update(in_settings_mode=new_mode, settings_page_index=0)
-                buzzer.beep(on_time=0.12, off_time=0.08, n=2)
+                buzzer.beep(on_time=0.10, off_time=0.08, n=3)
 
             press_count = 0

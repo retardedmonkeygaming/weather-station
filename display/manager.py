@@ -1,4 +1,4 @@
-"""LCD Display Manager with Hardware Diagnostics, Splash Screens, and Clean UI."""
+"""LCD Display Manager with standard ASCII loading bar."""
 import asyncio
 import socket
 from core.state import state
@@ -13,7 +13,7 @@ class DisplayManager:
         """Runs hardware self-test diagnostics followed by splash & loading screens."""
         self.lcd.clear()
         
-        # 3 clear, properly timed startup beeps
+        # 3 distinct startup beeps
         for _ in range(3):
             buzzer.beep(on_time=0.15, off_time=0.10, n=1)
             await asyncio.sleep(0.25)
@@ -37,7 +37,7 @@ class DisplayManager:
             self.lcd.write_lines("DHT11 Sensor:", "Status: Error!")
             await state.update(dht_error=True)
             buzzer.beep(on_time=0.2, off_time=0.1, n=2)
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(1.2)
 
         # Wi-Fi Connectivity Check
         self.lcd.write_lines("Diagnostics...", "Testing Wi-Fi")
@@ -56,17 +56,17 @@ class DisplayManager:
             self.lcd.write_lines("Wi-Fi Network:", "Status: Offline")
             await state.update(wifi_error=True)
             buzzer.beep(on_time=0.2, off_time=0.1, n=2)
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(1.2)
 
         # --- STEP 2: SPLASH SCREEN 1 ---
         self.lcd.write_lines("    Weather     ", "    Station     ")
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(1.8)
 
-        # --- STEP 3: SPLASH SCREEN 2 & LOADING MATRIX ---
+        # --- STEP 3: SPLASH SCREEN 2 & STANDARD ASCII LOADING BAR ---
         loading_text = "Loading..."
-        total_steps = 16
+        total_steps = 14
         for i in range(1, total_steps + 1):
-            bar = "█" * i + " " * (total_steps - i)
+            bar = "[" + "#" * i + " " * (total_steps - i) + "]"
             self.lcd.write_lines(loading_text, bar)
             await asyncio.sleep(0.08)
 
