@@ -1,6 +1,5 @@
 """Central application state store."""
 import asyncio
-from datetime import datetime
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -62,11 +61,11 @@ class AppState:
                 if hasattr(self._data, key):
                     setattr(self._data, key, value)
 
-    async def get_snapshot() -> AppStateModel:
+    async def get_snapshot(self) -> AppStateModel:
         async with self._lock:
             return self._data.model_copy()
 
-    def get_snapshot_sync() -> AppStateModel:
+    def get_snapshot_sync(self) -> AppStateModel:
         return self._data.model_copy()
 
 
