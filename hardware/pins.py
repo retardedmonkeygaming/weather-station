@@ -16,7 +16,7 @@ LCD_ROWS = 2
 TOUCH_PIN = 27          # BCM GPIO Pin 27 for Touch Input
 
 # Buzzer Pin
-BUZZER_PIN = 12         # BCM GPIO Pin 12 for Buzzer
+BUZZER_PIN = 2         # BCM GPIO Pin 2 for Buzzer
 
 # DHT11 Sensor Pin
 DHT_PIN = 4             # BCM GPIO Pin 4 for DHT11 Sensor
