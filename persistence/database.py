@@ -1,8 +1,21 @@
-"""Database initialization and persistence operations."""
+"""Database initialization, settings persistence, and sensor history logging."""
 import aiosqlite
 from typing import Dict, Any
 
 DB_FILE = "weather_history.db"
+
+DEFAULT_SETTINGS = {
+    "temp_unit": "C",
+    "buzzer_mode": "ALL",
+    "backlight_enabled": "True",
+    "auto_scroll_speed": "3",
+    "alarm_time": "07:00",
+    "alarm_enabled": "False",
+    "log_interval": "300",
+    "api_fetch_interval": "600",
+    "temp_offset": "0.0",
+    "humid_offset": "0.0"
+}
 
 
 async def init_db(db_path: str = DB_FILE):
@@ -31,10 +44,17 @@ async def init_db(db_path: str = DB_FILE):
                 widget_type TEXT
             )
         """)
+        
+        # Populate missing default settings
+        for key, val in DEFAULT_SETTINGS.items():
+            await db.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                (key, val)
+            )
         await db.commit()
 
 
-async def save_setting(key: str, value: str, db_path: str = DB_FILE):
+async def save_setting(key: str, value: Any, db_path: str = DB_FILE):
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
@@ -43,7 +63,7 @@ async def save_setting(key: str, value: str, db_path: str = DB_FILE):
         await db.commit()
 
 
-async def load_settings(db_path: str = DB_FILE) -> Dict[str, str]:
+async def load_all_settings(db_path: str = DB_FILE) -> Dict[str, str]:
     async with aiosqlite.connect(db_path) as db:
         async with db.execute("SELECT key, value FROM settings") as cursor:
             rows = await cursor.fetchall()
@@ -62,7 +82,7 @@ async def log_sensor_data(data: Dict[str, Any], db_path: str = DB_FILE):
                 data.get("outdoor_temp"),
                 data.get("outdoor_humid"),
                 data.get("uv_current"),
-                data.get("aqi")
+                data.get("aqi_val") if data.get("aqi_val") != "N/A" else None
             )
         )
         await db.commit()

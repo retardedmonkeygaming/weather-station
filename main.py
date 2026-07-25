@@ -3,7 +3,6 @@ import asyncio
 import sys
 import os
 
-# Ensure current working directory is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import uvicorn
@@ -15,7 +14,7 @@ from hardware.buzzer import get_buzzer
 from hardware.dht import DHTSensor
 from hardware.lcd import LCDDriver
 from input.processor import process_touch_input
-from persistence.database import init_db, log_sensor_data
+from persistence.database import init_db, load_all_settings, log_sensor_data
 from services.system_stats import get_pi_stats
 from services.weather_api import fetch_weather_and_aqi
 from utils.logging_setup import setup_logging
@@ -81,6 +80,19 @@ async def safe_task(coro_func, task_name: str):
 async def main():
     logger.info("Initializing Database...")
     await init_db(cfg.db_file)
+    
+    # Restore saved settings from database
+    saved_settings = await load_all_settings(cfg.db_file)
+    await state.update(
+        temp_unit=saved_settings.get("temp_unit", "C"),
+        buzzer_mode=saved_settings.get("buzzer_mode", "ALL"),
+        auto_scroll_speed=int(saved_settings.get("auto_scroll_speed", "3")),
+        alarm_enabled=(saved_settings.get("alarm_enabled") == "True")
+    )
+
+    # Boot Loading Sequence with Beeps
+    logger.info("Executing boot loading screen sequence...")
+    await display_mgr.run_loading_sequence(buzzer)
 
     # Launch Web App Uvicorn Task
     app = create_app()
