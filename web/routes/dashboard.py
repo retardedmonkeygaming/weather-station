@@ -54,6 +54,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div id="lcd-line2" class="lcd-line">Please wait</div>
             </div>
             <p style="font-size:0.85rem; color:#666; margin-top:10px;">Active Page: <span id="current-page-num">1</span>/7</p>
+            <label style="display:block; margin-top:8px; font-size:0.9rem; color:#666;"><input type="checkbox" id="show-settings-menu"> Show Settings Menu on LCD Preview</label>
         </div>
 
         <div class="card">
@@ -183,6 +184,25 @@ HTML_CONTENT = """<!DOCTYPE html>
         setInterval(fetchState, 1000);
         loadSettingsUI();
         initChart();
+        // Settings menu preview handling
+        let settingsPreviewInterval;
+        document.getElementById('show-settings-menu').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // poll preview
+                settingsPreviewInterval = setInterval(async () => {
+                    try {
+                        const res = await fetch('/api/preview?mode=settings');
+                        const j = await res.json();
+                        if (j.lines && j.lines.length >= 2) {
+                            document.getElementById('lcd-line1').innerText = j.lines[0];
+                            document.getElementById('lcd-line2').innerText = j.lines[1];
+                        }
+                    } catch (err) { console.error(err); }
+                }, 1000);
+            } else {
+                clearInterval(settingsPreviewInterval);
+            }
+        });
     </script>
 </body>
 </html>

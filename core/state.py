@@ -37,6 +37,8 @@ class AppStateModel(BaseModel):
     in_settings_mode: bool = False
     settings_page_index: int = 0
     total_settings_count: int = 8
+    # Mapping from physical page slot -> widget id (1..7)
+    page_widget_map: Dict[int, int] = Field(default_factory=lambda: {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7})
     
     # Settings
     temp_unit: str = "C"

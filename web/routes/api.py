@@ -1,10 +1,12 @@
 """API Endpoints for Telemetry, Settings, Page Visibility, and Webhooks."""
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from typing import List
+from typing import List, Dict
+import json
 from core.state import state
 from persistence.database import save_setting, factory_reset_db, DB_FILE
 import aiosqlite
+from display.widgets import WIDGET_MAP, render_widget_settings
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -17,6 +19,7 @@ class SettingsUpdateModel(BaseModel):
     temp_offset: float | None = None
     night_mode: bool | None = None
     enabled_pages: List[int] | None = None
+    page_widget_map: Dict[int, int] | None = None
     high_temp_threshold: float | None = None
     low_temp_threshold: float | None = None
     webhook_url: str | None = None
@@ -53,8 +56,42 @@ async def update_settings(payload: SettingsUpdateModel):
         updates["enabled_pages"] = payload.enabled_pages
         await save_setting("enabled_pages", ",".join(map(str, payload.enabled_pages)))
 
+    if payload.page_widget_map is not None:
+        updates["page_widget_map"] = payload.page_widget_map
+        # persist as JSON string
+        await save_setting("page_widget_map", json.dumps(payload.page_widget_map))
+
     await state.update(**updates)
     return {"status": "success", "updated": updates}
+
+
+@router.get("/preview")
+async def preview_widget(page: int | None = None, widget: int | None = None, mode: str | None = None):
+    """Return two-line preview for a given page/widget or the settings menu when `mode=settings`."""
+    snap = await state.get_snapshot()
+    # Settings mode preview
+    if mode == "settings":
+        l1, l2 = render_widget_settings(snap)
+        return {"lines": [l1, l2]}
+
+    # explicit widget preview
+    if widget is not None:
+        fn = WIDGET_MAP.get(int(widget))
+        if fn:
+            l1, l2 = fn(snap)
+            return {"lines": [l1, l2]}
+
+    # page-based preview: consult page_widget_map if present
+    if page is not None:
+        # prefer state.page_widget_map if set
+        mapping = getattr(snap, "page_widget_map", {}) or {}
+        widget_id = mapping.get(int(page), int(page))
+        fn = WIDGET_MAP.get(int(widget_id))
+        if fn:
+            l1, l2 = fn(snap)
+            return {"lines": [l1, l2]}
+
+    return {"lines": ["N/A","N/A"]}
 
 
 @router.get("/history")
