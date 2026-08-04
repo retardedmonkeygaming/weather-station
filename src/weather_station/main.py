@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 import uvicorn
 from weather_station.core.state import state
 from weather_station.core.config import settings
@@ -11,68 +12,86 @@ from weather_station.display.manager import DisplayManager
 from weather_station.input.processor import InputProcessor
 from weather_station.web.app import app
 
+# Initialize logging at top level to prevent silent crashes
+setup_logging()
+logger = logging.getLogger("Main")
+
 async def weather_fetcher(service):
     while True:
         await service.fetch_all()
         await asyncio.sleep(settings.api_rate * 60)
 
-async def run_web_server():
-    """Runs Uvicorn in an async-friendly way."""
-    config = uvicorn.Config(
-        app=app, 
-        host=settings.web_host, 
-        port=settings.web_port, 
-        log_level="error"
-    )
-    server = uvicorn.Server(config)
-    await server.serve()
+async def dht_reader(sensors):
+    while True:
+        temp, humid = sensors.read_dht()
+        if temp is not None:
+            state.indoor_temp = temp + settings.dht_temp_offset
+            state.indoor_humid = humid
+            state.dht_error = False
+        else:
+            state.dht_error = True
+        await asyncio.sleep(3)
 
-async def run_diagnostics(lcd, sensors, buzzer, weather_service):
-    """Restores your original on-boot diagnostics and loading screen."""
+async def run_diagnostics(lcd, sensors, buzzer, weather):
+    """Restores your original boot sequence."""
+    print("Running Diagnostics...")
     lcd.clear()
     lcd.write_lines(" WEATHER STATION", " v3.0 Booting...")
     buzzer.beep(0.06, repeats=2)
     await asyncio.sleep(1.2)
 
-    # Loading Animation
+    # Loading Animation (Restores your blocks)
     lcd.clear()
     for i in range(16):
         lcd.write_lines("Loading System..", "\x06" * (i + 1))
         await asyncio.sleep(0.08)
 
-    # Hardware Check
+    # Sensor Check
     temp, _ = sensors.read_dht()
     if temp is None:
-        state.dht_error = True
-        lcd.write_lines("Error: DHT11", "Sensor Missing")
+        logger.warning("DHT11 not detected during boot.")
+        lcd.write_lines("Error: DHT11", "Check Sensor")
         buzzer.error_alert()
         await asyncio.sleep(2)
 
-    # WiFi Check
-    await weather_service.fetch_all()
+    # WiFi/API Check
+    await weather.fetch_all()
     if state.wifi_error:
-        lcd.write_lines("Error: WiFi", "Not Connected")
+        logger.warning("WiFi/API failure during boot.")
+        lcd.write_lines("Error: WiFi", "Offline Mode")
         buzzer.error_alert()
         await asyncio.sleep(2)
+
+async def run_web_server():
+    config = uvicorn.Config(app=app, host=settings.web_host, port=settings.web_port, log_level="warning")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 async def main():
-    setup_logging()
-    db = DatabaseManager()
-    await db.initialize()
-    
-    lcd = WeatherLCD()
-    sensors = WeatherSensors()
-    buzzer = WeatherBuzzer()
-    weather_service = WeatherService()
-    
-    # RUN DIAGNOSTICS FIRST
-    await run_diagnostics(lcd, sensors, buzzer, weather_service)
+    try:
+        db = DatabaseManager()
+        await db.initialize()
+        
+        lcd = WeatherLCD()
+        sensors = WeatherSensors()
+        buzzer = WeatherBuzzer()
+        weather_service = WeatherService()
+        
+        # Run the boot sequence you love
+        await run_diagnostics(lcd, sensors, buzzer, weather_service)
 
-    logger.info("Starting Weather Station Modules...")
-    await asyncio.gather(
-        weather_fetcher(weather_service),
-        dht_reader(sensors),
-        DisplayManager(lcd).run_loop(),
-        InputProcessor(sensors, buzzer).run_loop(),
-        run_web_server()
-    )
+        logger.info("System Ready. Starting background tasks.")
+
+        await asyncio.gather(
+            weather_fetcher(weather_service),
+            dht_reader(sensors),
+            DisplayManager(lcd).run_loop(),
+            InputProcessor(sensors, buzzer).run_loop(),
+            run_web_server()
+        )
+    except Exception as e:
+        print(f"CRITICAL STARTUP ERROR: {e}")
+        logger.critical(f"Startup failed: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
