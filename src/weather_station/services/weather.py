@@ -1,78 +1,48 @@
-import aiohttp
-import logging
-from weather_station.core.config import settings
-from weather_station.core.state import state
+import math
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+def calculate_moon_phase(dt=None):
+    """Calculates moon phase, illumination, and name."""
+    if dt is None:
+        dt = datetime.now()
+    ref_date = datetime(2000, 1, 6, 18, 14)
+    diff = dt - ref_date
+    days = diff.total_seconds() / 86400.0
+    moon_age = days % 29.530588853
+    
+    if moon_age < 1.84: phase = "New Moon"
+    elif moon_age < 5.53: phase = "Waxing Crescent"
+    elif moon_age < 9.22: phase = "First Quarter"
+    elif moon_age < 12.91: phase = "Waxing Gibbous"
+    elif moon_age < 16.61: phase = "Full Moon"
+    elif moon_age < 20.30: phase = "Waning Gibbous"
+    elif moon_age < 23.99: phase = "Last Quarter"
+    elif moon_age < 27.68: phase = "Waning Crescent"
+    else: phase = "New Moon"
+    
+    illum = round((1 - math.cos((moon_age / 29.53) * 2 * math.pi)) / 2 * 100)
+    return {"short_name": phase, "illumination": illum}
 
-class WeatherService:
-    def __init__(self):
-        self.weather_url = "https://api.open-meteo.com/v1/forecast"
-        self.aqi_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+def get_comfort_level(temp_c, humid):
+    """Determines comfort level based on temp and humidity."""
+    if temp_c is None or humid is None:
+        return "Unknown"
+    try:
+        temp_c = float(temp_c)
+        humid = float(humid)
+    except (ValueError, TypeError):
+        return "Unknown"
 
-    def _get_weather_info(self, code):
-        """Maps Open-Meteo codes to LCD icons and text."""
-        if code in [0, 1]: return "\x05", "Clear"
-        if code in [2, 3]: return "\x04", "Cloudy"
-        if code in [45, 48]: return "\x04", "Foggy"
-        if code in [51, 53, 55, 61, 63, 65]: return "\x04", "Rain"
-        if code in [71, 73, 75]: return "\x04", "Snow"
-        if code in [95, 96, 99]: return "\x04", "Storm"
-        return "\x05", "Clear"
+    if temp_c > 29: return "Hot"
+    if humid < 30: return "Dry"
+    if humid > 65: return "Humid"
+    if 20 <= temp_c <= 26 and 30 <= humid <= 60: return "Comfort"
+    return "Moderate"
 
-    def _parse_aqi_status(self, aqi):
-        """Maps US AQI values to status text."""
-        try:
-            val = int(aqi)
-            if val <= 50: return "Good"
-            if val <= 100: return "Moderate"
-            if val <= 150: return "Sensitiv"
-            if val <= 200: return "Unhealth"
-            return "Hazard"
-        except: return "N/A"
-
-    async def fetch_all(self):
-        """Fetches both Weather and AQI data in parallel."""
-        params = {
-            "latitude": settings.latitude,
-            "longitude": settings.longitude,
-            "current": "temperature_2m,relative_humidity_2m,weather_code,uv_index",
-            "daily": "temperature_2m_max,temperature_2m_min,uv_index_max",
-            "timezone": "auto"
-        }
-        aqi_params = {
-            "latitude": settings.latitude,
-            "longitude": settings.longitude,
-            "current": "us_aqi,pm10,pm2_5"
-        }
-
-        async with aiohttp.ClientSession() as session:
-            try:
-                # Fetch Weather
-                async with session.get(self.weather_url, params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        state.outdoor_temp = f"{data['current']['temperature_2m']:.1f}"
-                        state.outdoor_humid = f"{data['current']['relative_humidity_2m']}"
-                        state.outdoor_max = f"{data['daily']['temperature_2m_max'][0]:.1f}"
-                        state.outdoor_min = f"{data['daily']['temperature_2m_min'][0]:.1f}"
-                        
-                        icon, text = self._get_weather_info(data['current']['weather_code'])
-                        state.weather_icon = icon
-                        state.weather_text = text
-                        state.wifi_error = False
-                    else:
-                        state.wifi_error = True
-
-                # Fetch AQI
-                async with session.get(self.aqi_url, params=aqi_params) as resp:
-                    if resp.status == 200:
-                        aqi_data = await resp.json()
-                        state.aqi_val = str(int(aqi_data['current']['us_aqi']))
-                        state.aqi_status = self._parse_aqi_status(state.aqi_val)
-                        state.pm2_5 = str(int(aqi_data['current']['pm2_5']))
-                        state.pm10 = str(int(aqi_data['current']['pm10']))
-            
-            except Exception as e:
-                logger.error(f"Failed to fetch outdoor weather: {e}")
-                state.wifi_error = True
+def format_centered_clock():
+    """Returns centered Time and Date (YY) for the 16x2 LCD."""
+    now = datetime.now()
+    time_str = now.strftime("%H:%M:%S")
+    date_str = now.strftime("%d-%m-%y") # Shortened year (e.g. 26)
+    
+    return f"{time_str:^16}", f"{date_str:^16}"
