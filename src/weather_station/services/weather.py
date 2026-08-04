@@ -2,9 +2,7 @@ import math
 from datetime import datetime
 
 def calculate_moon_phase(dt=None):
-    """Calculates moon phase, illumination, and name."""
-    if dt is None:
-        dt = datetime.now()
+    if dt is None: dt = datetime.now()
     ref_date = datetime(2000, 1, 6, 18, 14)
     diff = dt - ref_date
     days = diff.total_seconds() / 86400.0
@@ -24,25 +22,15 @@ def calculate_moon_phase(dt=None):
     return {"short_name": phase, "illumination": illum}
 
 def get_comfort_level(temp_c, humid):
-    """Determines comfort level based on temp and humidity."""
     if temp_c is None or humid is None:
         return "Unknown"
     try:
-        temp_c = float(temp_c)
-        humid = float(humid)
-    except (ValueError, TypeError):
+        t = float(temp_c)
+        h = float(humid)
+        if t > 29: return "Hot"
+        if h < 30: return "Dry"
+        if h > 65: return "Humid"
+        if 20 <= t <= 26 and 30 <= h <= 60: return "Comfort"
+        return "Moderate"
+    except:
         return "Unknown"
-
-    if temp_c > 29: return "Hot"
-    if humid < 30: return "Dry"
-    if humid > 65: return "Humid"
-    if 20 <= temp_c <= 26 and 30 <= humid <= 60: return "Comfort"
-    return "Moderate"
-
-def format_centered_clock():
-    """Returns centered Time and Date (YY) for the 16x2 LCD."""
-    now = datetime.now()
-    time_str = now.strftime("%H:%M:%S")
-    date_str = now.strftime("%d-%m-%y") # Shortened year (e.g. 26)
-    
-    return f"{time_str:^16}", f"{date_str:^16}"
