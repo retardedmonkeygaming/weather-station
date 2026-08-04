@@ -47,23 +47,10 @@ class AppState:
     # Designer overrides
     custom_pages: Dict[int, str] = field(default_factory=dict)
 
-    # --- LYRICPULSE STATE ---
+    # --- LYRICPULSE INTEGRATION ---
     is_lyric_active: bool = False
-    lyric_state: str = "IDLE"  # IDLE, MENU, PLAYING
     current_song_title: str = ""
     current_lyric_line1: str = ""
     current_lyric_line2: str = ""
-    
-    # NEW: For the LCD song browser
-    songs_list: List[Dict] = field(default_factory=list)
-    selected_song_index: int = 0
-    
-    # Designer & Navigation
-    current_page: int = 1
-    total_pages: int = 6
-    last_line1: str = ""
-    last_line2: str = ""
-    custom_pages: Dict[int, str] = field(default_factory=dict)
-    system_message: Optional[tuple] = None
 
 state = AppState()
