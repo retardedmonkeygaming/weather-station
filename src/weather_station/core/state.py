@@ -48,7 +48,8 @@ class AppState:
     # Weather description (Clear, Rain, etc.)
     weather_icon: str = "\x05"
     weather_text: str = "Clear"
-    # ...
+
+    system_message: Optional[tuple] = None # Stores (Line1, Line2)
     
     custom_pages: Dict[int, str] = field(default_factory=dict)
 
