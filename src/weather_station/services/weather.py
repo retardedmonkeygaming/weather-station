@@ -19,15 +19,20 @@ class WeatherService:
         if code in [95, 96, 99]: return "\x04", "Storm"
         return "\x05", "Clear"
 
-async def fetch_all(self):
+    async def fetch_all(self):
         params = {
             "latitude": settings.latitude,
             "longitude": settings.longitude,
-            "current": "temperature_2m,relative_humidity_2m,weather_code,uv_index", # Added uv_index
-            "daily": "temperature_2m_max,temperature_2m_min,uv_index_max",        # Added uv_index_max
+            "current": "temperature_2m,relative_humidity_2m,weather_code,uv_index",
+            "daily": "temperature_2m_max,temperature_2m_min,uv_index_max",
             "timezone": "auto"
         }
-        # ... (rest of the setup) ...
+        aqi_params = {
+            "latitude": settings.latitude,
+            "longitude": settings.longitude,
+            "current": "us_aqi,pm10,pm2_5"
+        }
+
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(self.weather_url, params=params) as resp:
@@ -36,28 +41,19 @@ async def fetch_all(self):
                         state.outdoor_temp = f"{data['current']['temperature_2m']:.1f}"
                         state.outdoor_max = f"{data['daily']['temperature_2m_max'][0]:.1f}"
                         state.outdoor_min = f"{data['daily']['temperature_2m_min'][0]:.1f}"
-                        
-                        # NEW: UV Index Mapping
+                        state.outdoor_humid = f"{data['current']['relative_humidity_2m']}"
                         state.uv_index = f"{data['current']['uv_index']:.1f}"
                         state.uv_max = f"{data['daily']['uv_index_max'][0]:.1f}"
-                        
                         state.weather_icon, state.weather_text = self._get_weather_info(data['current']['weather_code'])
                         state.wifi_error = False
                     else: state.wifi_error = True
-                    
-                # AQI Fetch
+
                 async with session.get(self.aqi_url, params=aqi_params) as resp:
                     if resp.status == 200:
                         aqi_data = await resp.json()
                         state.aqi_val = str(int(aqi_data['current']['us_aqi']))
                         state.pm2_5 = str(int(aqi_data['current']['pm2_5']))
                         state.pm10 = str(int(aqi_data['current']['pm10']))
-                        
-                        val = int(state.aqi_val)
-                        if val <= 50: state.aqi_status = "Good"
-                        elif val <= 100: state.aqi_status = "Moderate"
-                        elif val <= 150: state.aqi_status = "Unhealth"
-                        else: state.aqi_status = "Hazard"
             except Exception as e:
                 logger.error(f"Weather API Error: {e}")
                 state.wifi_error = True
