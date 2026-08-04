@@ -7,16 +7,16 @@ from weather_station.core.state import state
 
 app = FastAPI()
 
-# Get absolute path to the web folder
+# FORCE ABSOLUTE PATHS
 BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATE_DIR = BASE_DIR / "templates"
 
-# Ensure the app can find the CSS and HTML
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 @app.get("/")
 async def dashboard(request: Request):
-    # This renders the main page
     return templates.TemplateResponse("dashboard.html", {"request": request, "state": state})
 
 @app.get("/api/data")

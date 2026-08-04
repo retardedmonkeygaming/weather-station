@@ -1,33 +1,34 @@
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 
 @dataclass
 class AppState:
-    # Sensor Data
+    # Environment Data
     indoor_temp: Optional[float] = None
     indoor_humid: Optional[float] = None
     outdoor_temp: str = "N/A"
     outdoor_humid: str = "N/A"
+    outdoor_max: str = "N/A"
+    outdoor_min: str = "N/A"
+    aqi_val: str = "N/A"
+    aqi_status: str = "N/A"
     
-    # Status Flags
-    dht_error: bool = False
-    wifi_error: bool = False
-    alarm_ringing: bool = False
-    
-    # LCD State
+    # LCD Navigation
     current_page: int = 1
     total_pages: int = 6
-    page_changed: bool = True
+    in_settings_mode: bool = False
+    settings_index: int = 1
+    total_settings: int = 10
     
-    # History for trends
-    temp_history: List[float] = field(default_factory=list)
+    # Error Flags
+    dht_error: bool = False
+    wifi_error: bool = False
+    
+    # Symbols & Icons
+    temp_trend_symbol: str = "->"
+    clock_icon: str = "\x00"  # Hourglass
     
     # Web UI Designer
     custom_pages: Dict[int, str] = field(default_factory=dict)
 
-    current_page: int = 1
-    total_pages: int = 6  # ENSURE THIS IS 6
-    aqi_val: str = "N/A"
-    
-# Global shared state instance
 state = AppState()
