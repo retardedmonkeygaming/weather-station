@@ -43,3 +43,17 @@ class DatabaseManager:
             async with db.execute("SELECT page_id, widget_type FROM ui_pages") as cursor:
                 rows = await cursor.fetchall()
                 return {row[0]: row[1] for row in rows}
+    
+    async def save_page_assignment(self, page_id: int, widget_type: str):
+        """Saves a custom LCD page layout to the DB."""
+        query = "INSERT OR REPLACE INTO ui_pages (page_id, widget_type) VALUES (?, ?)"
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(query, (page_id, widget_type))
+            await db.commit()
+
+    async def save_setting(self, key: str, value: str):
+        """Saves a system setting (Unit, API Rate, etc) to the DB."""
+        query = "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)"
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(query, (key, value))
+            await db.commit()

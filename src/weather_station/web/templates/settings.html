@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>System Settings</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h2>Station Settings</h2>
+        <nav><a href="/" class="nav-link">Dashboard</a></nav>
+    </header>
+    <div class="container">
+        <div class="card">
+            <h3>System Preferences</h3>
+            <form action="/api/save-settings" method="post">
+                <div class="form-group">
+                    <label>Temperature Unit:</label>
+                    <select name="unit">
+                        <option value="C">Celsius (°C)</option>
+                        <option value="F">Fahrenheit (°F)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Buzzer Mode:</label>
+                    <select name="buzzer_mode">
+                        <option value="ALL">All Sounds</option>
+                        <option value="ERR">Errors Only</option>
+                        <option value="MUTE">Mute</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>API Refresh (Minutes):</label>
+                    <input type="number" name="api_rate" value="10" min="1" max="60">
+                </div>
+                <button type="submit" class="btn-blue">Save All Settings</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -27,11 +27,37 @@ async def get_data():
         "wifi_status": "ONLINE" if not state.wifi_error else "OFFLINE"
     }
 
-# ADD EMPTY ROUTES SO LINKS DON'T 404
-@app.get("/designer")
-async def designer_placeholder(request: Request):
-    return "UI Designer Page - Coming in next update"
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import RedirectResponse
+from weather_station.persistence.database import DatabaseManager
 
-@app.get("/settings")
-async def settings_placeholder(request: Request):
-    return "Settings Page - Coming in next update"
+db = DatabaseManager()
+
+@app.post("/api/save-settings")
+async def save_settings(
+    unit: str = Form(...), 
+    api_rate: int = Form(...),
+    buzzer_mode: str = Form(...)
+):
+    # 1. Update the Database
+    await db.save_setting("unit", unit)
+    await db.save_setting("api_rate", str(api_rate))
+    await db.save_setting("buzzer_mode", buzzer_mode)
+    
+    # 2. Update live config/state immediately
+    from weather_station.core.config import settings
+    settings.unit = unit
+    settings.api_rate = api_rate
+    settings.buzzer_mode = buzzer_mode
+    
+    return RedirectResponse(url="/settings", status_code=303)
+
+@app.post("/api/save-page")
+async def save_page(page_id: int = Form(...), widget_type: str = Form(...)):
+    # 1. Update Database
+    await db.save_page_assignment(page_id, widget_type)
+    
+    # 2. Update Live State
+    state.custom_pages[page_id] = widget_type
+    
+    return RedirectResponse(url="/designer", status_code=303)
