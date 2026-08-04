@@ -1,23 +1,26 @@
 import os
-import shutil
 
 class SystemService:
     @staticmethod
     def get_stats():
-        stats = {"cpu_temp": "N/A", "cpu_usage": "N/A", "ram_usage": "N/A"}
+        cpu_temp = "N/A"
+        cpu_usage = "N/A"
+        ram_usage = "N/A"
         
-        # CPU Temperature
         try:
-            if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
-                with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
-                    stats["cpu_temp"] = f"{float(f.read().strip()) / 1000.0:.1f}C"
+            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                cpu_temp = f"{float(f.read().strip()) / 1000.0:.1f}C"
+            
+            # Simple CPU usage via top/loadavg
+            load = os.getloadavg()[0]
+            cpu_usage = f"{(load / 4) * 100:.1f}%"
+            
+            # RAM usage
+            with open('/proc/meminfo', 'r') as f:
+                lines = f.readlines()
+                total = int(lines[0].split()[1])
+                avail = int(lines[2].split()[1])
+                ram_usage = f"{((total - avail) / total) * 100:.1f}%"
         except: pass
 
-        # RAM Usage
-        try:
-            total, used, free = shutil.disk_usage("/")
-            # This is a simplification; for professional stats, we use /proc/meminfo
-            stats["ram_usage"] = f"{(used/total)*100:.1f}%"
-        except: pass
-
-        return stats
+        return {"cpu_temp": cpu_temp, "cpu_usage": cpu_usage, "ram_usage": ram_usage}
