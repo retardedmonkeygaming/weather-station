@@ -20,3 +20,16 @@ def calculate_moon_phase(dt=None):
     
     illum = round((1 - math.cos((moon_age / 29.53) * 2 * math.pi)) / 2 * 100)
     return {"short_name": phase, "illumination": illum}
+
+def get_comfort_level(temp_c, humid):
+    if temp_c is None or humid is None:
+        return "Unknown"
+    try:
+        t, h = float(temp_c), float(humid)
+        if t > 29: return "Hot"
+        if h < 30: return "Dry"
+        if h > 65: return "Humid"
+        if 20 <= t <= 26 and 30 <= h <= 60: return "Comfort"
+        return "Moderate"
+    except:
+        return "Unknown"
