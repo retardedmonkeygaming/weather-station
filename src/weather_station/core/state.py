@@ -25,5 +25,9 @@ class AppState:
     # Web UI Designer
     custom_pages: Dict[int, str] = field(default_factory=dict)
 
+    current_page: int = 1
+    total_pages: int = 6  # ENSURE THIS IS 6
+    aqi_val: str = "N/A"
+    
 # Global shared state instance
 state = AppState()
