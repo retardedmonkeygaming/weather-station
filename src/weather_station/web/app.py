@@ -1,25 +1,15 @@
-from fastapi import FastAPI, Request
+import os
+from pathlib import Path
+from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from weather_station.core.state import state
 
 app = FastAPI()
 
-# Mount static files and templates
-# Note: On Mac, paths are relative to where you run the script
-templates = Jinja2Templates(directory="src/weather_station/web/templates")
+# This finds the directory where THIS file (app.py) lives
+BASE_DIR = Path(__file__).resolve().parent
 
-@app.get("/")
-async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "state": state
-    })
-
-@app.get("/api/data")
-async def get_data():
-    return {
-        "indoor_temp": state.indoor_temp,
-        "indoor_humid": state.indoor_humid,
-        "wifi_status": "OK" if not state.wifi_error else "ERROR"
-    }
+# Mount static and templates using absolute paths
+# It will now find the folders correctly relative to app.py
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
