@@ -126,22 +126,3 @@ async def update_settings(unit: str = Form(...), buzzer: str = Form(...), alarm_
     await db.save_setting("buzzer", buzzer)
     await db.save_setting("api_rate", str(api_rate))
     return RedirectResponse(url="/settings", status_code=303)
-
-# Add these new routes to your existing app.py
-
-@app.get("/lyrics", response_class=HTMLResponse)
-async def lyric_home(request: Request):
-    # This will be a literal copy of your LyricPulse index.html
-    return """ [INSERT YOUR ORIGINAL INDEX.HTML CONTENT HERE] """
-
-@app.get("/lyrics/library", response_class=HTMLResponse)
-async def lyric_library(request: Request):
-    # Fetch songs from the transferred lyrics.db
-    songs = await db.get_all_songs() 
-    # This will be a literal copy of your library.html
-    return """ [INSERT YOUR ORIGINAL LIBRARY.HTML CONTENT HERE] """
-
-@app.get("/lyrics/editor/{song_id}", response_class=HTMLResponse)
-async def lyric_editor(request: Request, song_id: int):
-    # This will be a literal copy of your editor.html
-    return """ [INSERT YOUR ORIGINAL EDITOR.HTML CONTENT HERE] """

@@ -14,8 +14,7 @@ class WeatherSettings(BaseSettings):
     
     # ADD THIS LINE
     discord_token: str = "" 
-    # Add this line to your WeatherSettings class
-    lyrics_db: str = "lyrics.db"
+
     model_config = SettingsConfigDict(env_prefix="WEATHER_", env_file=".env", extra="ignore")
 
 settings = WeatherSettings()
