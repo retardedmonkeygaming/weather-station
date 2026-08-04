@@ -2,7 +2,24 @@ import asyncio
 import logging
 import sys
 import uvicorn
-import os # Added for environment variables
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# --- ULTIMATE ENV LOAD (MUST BE TOP) ---
+# This looks for .env in /vxprxx/weather-station/ regardless of where you start
+current_dir = Path(__file__).resolve().parent # weather_station/
+src_dir = current_dir.parent                  # src/
+root_dir = src_dir.parent                     # weather-station/
+env_path = root_dir / ".env"
+
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+    print(f"DEBUG: .env found at {env_path}")
+else:
+    print(f"DEBUG: .env NOT FOUND at {env_path}")
+
+# NOW we import the rest
 from weather_station.core.state import state
 from weather_station.core.config import settings
 from weather_station.utils.logging_setup import setup_logging
@@ -13,14 +30,48 @@ from weather_station.display.manager import DisplayManager
 from weather_station.input.processor import InputProcessor
 from weather_station.web.app import app
 from weather_station.services.discord_bot import WeatherBot
-from pathlib import Path
-from dotenv import load_dotenv
 
-base_path = Path(__file__).resolve().parent.parent.parent
-env_path = base_path / ".env"
-load_dotenv(dotenv_path=env_path)
+# ... (keep your weather_fetcher and dht_reader functions) ...
 
-from weather_station.core.state import state
+async def main():
+    try:
+        db = DatabaseManager()
+        await db.initialize()
+        
+        lcd = WeatherLCD()
+        sensors = WeatherSensors()
+        buzzer = WeatherBuzzer()
+        weather_service = WeatherService()
+        bot = WeatherBot() 
+        
+        await run_diagnostics(lcd, sensors, buzzer, weather_service)
+
+        logger.info("System Ready. Starting background tasks.")
+
+        tasks = [
+            weather_fetcher(weather_service),
+            dht_reader(sensors),
+            DisplayManager(lcd).run_loop(),
+            InputProcessor(sensors, buzzer).run_loop(),
+            run_web_server()
+        ]
+
+        # Use settings.discord_token OR os.getenv as a backup
+        token = os.getenv("WEATHER_DISCORD_TOKEN")
+        
+        if token:
+            logger.info("Token detected. Starting Discord Bot...")
+            tasks.append(bot.start(token))
+        else:
+            logger.warning(f"Discord Token missing in OS environment. Checked: {env_path}")
+
+        await asyncio.gather(*tasks)
+
+    except Exception as e:
+        logger.critical(f"Startup failed: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 setup_logging()
 logger = logging.getLogger("Main")
