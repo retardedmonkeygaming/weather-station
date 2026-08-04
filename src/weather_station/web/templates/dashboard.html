@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weather Station Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Weather Station</h1>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/designer">UI Designer</a>
+            <a href="/settings">Settings</a>
+        </nav>
+    </header>
+    <div class="container">
+        <div class="card">
+            <h2>Current Conditions</h2>
+            <p>Indoor: <strong>{{ state.indoor_temp }}°C</strong> / {{ state.indoor_humid }}%</p>
+            <p>Outdoor: <strong>{{ state.outdoor_temp }}°C</strong> / {{ state.outdoor_humid }}%</p>
+            <p>Status: <span class="{{ 'status-online' if not state.dht_error else 'status-offline' }}">
+                {{ 'DHT11 ONLINE' if not state.dht_error else 'DHT11 ERROR' }}</span></p>
+        </div>
+        <div class="card">
+            <h2>Live LCD Preview</h2>
+            <div class="lcd-preview" id="lcd">
+                Loading Preview...
+            </div>
+        </div>
+    </div>
+    <script>
+        // Simple script to refresh data every second
+        async function update() {
+            const res = await fetch('/api/data');
+            const data = await res.json();
+            // Update DOM elements...
+        }
+        setInterval(update, 1000);
+    </script>
+</body>
+</html>

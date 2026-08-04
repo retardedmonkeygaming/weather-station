@@ -1,0 +1,12 @@
+adafruit-circuitpython-charlcd
+adafruit-circuitpython-dht
+fastapi
+uvicorn[standard]
+aiosqlite
+aiohttp
+gpiozero
+requests
+pydantic
+pydantic-settings
+jinja2
+python-multipart
