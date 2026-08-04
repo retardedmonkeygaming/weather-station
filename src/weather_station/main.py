@@ -13,6 +13,14 @@ from weather_station.display.manager import DisplayManager
 from weather_station.input.processor import InputProcessor
 from weather_station.web.app import app
 from weather_station.services.discord_bot import WeatherBot
+from pathlib import Path
+from dotenv import load_dotenv
+
+base_path = Path(__file__).resolve().parent.parent.parent
+env_path = base_path / ".env"
+load_dotenv(dotenv_path=env_path)
+
+from weather_station.core.state import state
 
 setup_logging()
 logger = logging.getLogger("Main")
