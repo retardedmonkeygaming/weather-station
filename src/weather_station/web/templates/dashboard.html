@@ -1,45 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Weather Dashboard</title>
+    <title>Raspberry Pi Weather Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <header>
-        <h1>Weather Station Dashboard</h1>
-        <nav>
-            <a href="/">Dashboard</a>
-            <a href="/designer">UI Designer</a>
-            <a href="/settings">Settings</a>
-        </nav>
-    </header>
-    <div class="container">
-        <div class="card">
-            <h3>Live LCD Preview</h3>
-            <div class="lcd-container" id="lcd">Loading...</div>
-        </div>
-        <div class="card">
-            <h3>System Status</h3>
-            <div class="status-row"><span>DHT11 Sensor:</span> <span id="dht-status" class="badge">--</span></div>
-            <div class="status-row"><span>WiFi:</span> <span id="wifi-status" class="badge">--</span></div>
-            <hr>
-            <p>Indoor: <strong id="in-temp">--</strong></p>
-            <p>Outdoor: <strong id="out-temp">--</strong></p>
-        </div>
+    <h1>Weather Station Dashboard</h1>
+    <div style="margin-bottom: 20px; background: #0288d1; padding: 12px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <a href="/" style="margin-right: 20px; text-decoration: none; color: white; font-weight: bold; font-size: 16px;">Dashboard</a>
+        <a href="/designer" style="margin-right: 20px; text-decoration: none; color: white; font-weight: bold; font-size: 16px;">UI Designer</a>
+        <a href="/logs" style="margin-right: 20px; text-decoration: none; color: white; font-weight: bold; font-size: 16px;">System Logs</a>
+        <a href="/settings" style="text-decoration: none; color: white; font-weight: bold; font-size: 16px;">Settings & Calibration</a>
     </div>
-    <script>
-        async function update() {
-            const r = await fetch('/api/data');
-            const d = await r.json();
-            document.getElementById('lcd').innerText = d.lcd_line1 + "\n" + d.lcd_line2;
-            document.getElementById('in-temp').innerText = d.indoor_temp + " / " + d.indoor_humid;
-            document.getElementById('out-temp').innerText = d.outdoor_temp;
-            
-            const dht = document.getElementById('dht-status');
-            dht.className = "badge " + (d.dht_status === "ONLINE" ? "online" : "offline");
-            dht.innerText = d.dht_status;
-        }
-        setInterval(update, 1000);
-    </script>
+
+    <div class="card">
+        <h2>Current Live Metrics</h2>
+        <p><strong>Indoor Temp:</strong> {{ format_temp(state.indoor_temp) }} | <strong>Indoor Humidity:</strong> {{ state.indoor_humid }}%</p>
+        <p><strong>Outdoor Temp:</strong> {{ format_temp(state.outdoor_temp) }} | <strong>Outdoor Humidity:</strong> {{ state.outdoor_humid }}%</p>
+        <p><strong>AQI:</strong> {{ state.aqi_val }} ({{ state.aqi_status }}) | <strong>UV Index:</strong> {{ state.uv_index }}</p>
+    </div>
+
+    <h2>Recent History</h2>
+    <table>
+        <tr><th>Timestamp</th><th>Indoor Temp</th><th>Indoor Humid</th><th>Outdoor Temp</th><th>Outdoor Humidity</th></tr>
+        {% for row in logs %}
+        <tr><td>{{ row[0] }}</td><td>{{ row[1] }} C</td><td>{{ row[2] }}%</td><td>{{ row[3] }} C</td><td>{{ row[4] }}%</td></tr>
+        {% endfor %}
+    </table>
 </body>
 </html>

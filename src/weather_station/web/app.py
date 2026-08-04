@@ -1,66 +1,116 @@
-from fastapi import FastAPI, Request, Form, Body
-from fastapi.responses import HTMLResponse, RedirectResponse
+import os
+from pathlib import Path
+from datetime import datetime
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+
 from weather_station.core.state import state
 from weather_station.core.config import settings
 from weather_station.persistence.database import DatabaseManager
-from pathlib import Path
-from typing import Optional
+from weather_station.utils.formatting import calculate_moon_phase, get_comfort_level
 
 app = FastAPI()
 db = DatabaseManager()
 BASE_DIR = Path(__file__).resolve().parent
+
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+# Helper for formatted strings used in your original UI
+def format_temp_val(val):
+    if val is None or val == "N/A": return "N/A"
+    if settings.unit == "F":
+        return f"{(float(val) * 9/5) + 32:.1f}F"
+    return f"{float(val):.1f}C"
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request, "state": state})
+    logs_data = []
+    try:
+        async with db.get_connection() as conn:
+            async with conn.execute("SELECT timestamp, in_temp, in_humid, out_temp, out_humid FROM weather_logs ORDER BY id DESC LIMIT 15") as cursor:
+                logs_data = await cursor.fetchall()
+    except: pass
+    
+    # Passing raw state and helpers to match your original f-string logic
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request, 
+        "state": state, 
+        "format_temp": format_temp_val,
+        "calculate_moon_phase": calculate_moon_phase,
+        "logs": logs_data
+    })
 
 @app.get("/designer", response_class=HTMLResponse)
 async def designer(request: Request):
-    return templates.TemplateResponse("designer.html", {"request": request, "state": state})
+    return templates.TemplateResponse("designer.html", {"request": request})
+
+@app.get("/logs", response_class=HTMLResponse)
+async def view_logs(request: Request):
+    logs_data = []
+    total_count = 0
+    try:
+        async with db.get_connection() as conn:
+            async with conn.execute("SELECT COUNT(*) FROM weather_logs") as row:
+                total_count = (await row.fetchone())[0]
+            async with conn.execute("SELECT id, timestamp, in_temp, in_humid, out_temp, out_humid FROM weather_logs ORDER BY id DESC LIMIT 100") as cursor:
+                logs_data = await cursor.fetchall()
+    except: pass
+    return templates.TemplateResponse("logs.html", {"request": request, "logs": logs_data, "total_count": total_count})
 
 @app.get("/settings", response_class=HTMLResponse)
 async def web_settings(request: Request):
-    return templates.TemplateResponse("settings.html", {"request": request, "state": state, "settings": settings})
+    return templates.TemplateResponse("settings.html", {
+        "request": request, 
+        "state": state, 
+        "settings": settings,
+        "format_temp": format_temp_val
+    })
 
 @app.get("/api/data")
-async def get_data():
-    return {
+async def get_live_data():
+    from weather_station.services.system import SystemService
+    stats = SystemService.get_stats()
+    moon = calculate_moon_phase()
+    return JSONResponse({
+        "indoor_temp": format_temp_val(state.indoor_temp),
+        "indoor_humid": f"{state.indoor_humid}%" if state.indoor_humid else "N/A",
+        "outdoor_temp": format_temp_val(state.outdoor_temp),
+        "outdoor_humid": f"{state.outdoor_humid}%" if state.outdoor_humid != "N/A" else "N/A",
+        "aqi": state.aqi_val,
+        "aqi_status": state.aqi_status,
+        "uv_current": state.uv_index,
+        "moon_phase": moon['short_name'],
+        "moon_illumination": f"{moon['illumination']}%",
         "lcd_line1": state.last_line1,
         "lcd_line2": state.last_line2,
-        "indoor_temp": f"{state.indoor_temp:.1f}C" if state.indoor_temp else "N/A",
-        "indoor_humid": f"{state.indoor_humid}%" if state.indoor_humid else "N/A",
-        "outdoor_temp": f"{state.outdoor_temp}C",
-        "dht_status": "ONLINE" if not state.dht_error else "OFFLINE",
-        "wifi_status": "ONLINE" if not state.wifi_error else "OFFLINE"
-    }
-
-@app.post("/api/save-settings")
-async def save_settings(
-    unit: str = Form(...), 
-    buzzer: str = Form(...), 
-    api_rate: str = Form("10"),
-    log_rate: str = Form("15"),
-    alarm_hr: str = Form("17"),
-    alarm_min: str = Form("0")
-):
-    # Handle the string-to-int conversion safely to prevent the "Detail: Not Found" crash
-    settings.unit = unit
-    settings.buzzer_mode = buzzer
-    settings.api_rate = int(api_rate) if api_rate.isdigit() else 10
-    
-    await db.save_setting("unit", unit)
-    await db.save_setting("buzzer", buzzer)
-    return RedirectResponse(url="/settings", status_code=303)
+        "dht_status": "ONLINE" if not state.dht_error else "ERROR",
+        "wifi_status": "CONNECTED" if not state.wifi_error else "DISCONNECTED",
+        "pi_cpu_temp": stats["cpu_temp"],
+        "pi_cpu_usage": stats["cpu_usage"],
+        "pi_ram_usage": stats["ram_usage"]
+    })
 
 @app.post("/api/save-page")
 async def save_page(request: Request):
-    data = await request.json()
-    p_id = int(data.get("page_id", 1))
-    w_type = data.get("widget_type", "widget_clock")
+    body = await request.json()
+    p_id, w_type = int(body.get("page_id", 1)), body.get("widget_type", "")
     state.custom_pages[p_id] = w_type
     await db.save_page_assignment(p_id, w_type)
     return {"status": "success"}
+
+@app.post("/update-settings")
+async def update_settings(
+    unit: str = Form(...), buzzer: str = Form(...), screen: str = Form(...),
+    auto_scroll: int = Form(...), alarm_on: str = Form(...),
+    alarm_hr: int = Form(...), alarm_min: int = Form(...),
+    api_rate: int = Form(...), log_rate: int = Form(...)
+):
+    settings.unit = unit
+    settings.buzzer_mode = buzzer
+    # Update local config and DB
+    await db.save_setting("unit", unit)
+    await db.save_setting("buzzer", buzzer)
+    return RedirectResponse(url="/settings", status_code=303)

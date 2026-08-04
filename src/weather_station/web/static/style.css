@@ -1,33 +1,24 @@
-body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f0f2f5; margin: 0; color: #333; }
-header { background: #0288d1; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-header h1 { margin: 0; font-size: 1.5rem; }
-nav a { color: white; text-decoration: none; margin-left: 20px; font-weight: bold; transition: 0.3s; }
-nav a:hover { opacity: 0.7; }
+body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+h1 { color: #0288d1; margin-bottom: 10px; }
+.card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; background: white; }
+th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+th { background-color: #0288d1; color: white; }
 
-.container { padding: 30px; max-width: 1200px; margin: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; }
-.card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 5px solid #0288d1; }
-.card h3 { margin-top: 0; color: #0288d1; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+/* Designer Styles */
+.guide-banner { background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: 500; }
+.page-selector { display: flex; align-items: center; gap: 10px; background: white; padding: 14px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 20px; flex-wrap: wrap; }
+.page-btn { padding: 8px 16px; background: #cfd8dc; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 14px; border: none; color: #455a64; transition: 0.2s; }
+.page-btn.active { background: #0288d1; color: white; }
+.grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
+.widget-card { background: white; border: 2px solid #b0bec5; border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 3px 6px rgba(0,0,0,0.05); }
+.widget-card:hover { border-color: #0288d1; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+.widget-card.selected { border-color: #2e7d32; background-color: #e8f5e9; }
+.lcd-preview-card { background: #1b2a1a; color: #33ff33; font-family: 'Courier New', monospace; padding: 15px; border-radius: 8px; border: 4px solid #2e4d2a; font-size: 18px; font-weight: bold; white-space: pre; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-top: 20px; display:inline-block; }
+.btn { padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; font-size: 14px; transition: background 0.2s; }
+.btn-save { background-color: #2e7d32; }
 
-/* THE GLOWING GREEN LCD */
-.lcd-container {
-    background: #1b2a1a;
-    color: #33ff33;
-    font-family: 'Courier New', monospace;
-    padding: 30px;
-    border-radius: 10px;
-    border: 5px solid #2e4d2a;
-    font-size: 28px;
-    white-space: pre;
-    text-align: center;
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 0 15px rgba(51, 255, 51, 0.2);
-    margin: 10px 0;
-}
-
-.status-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9rem; }
-.badge { padding: 4px 10px; border-radius: 20px; font-weight: bold; }
-.online { background: #e8f5e9; color: #2e7d32; }
-.offline { background: #ffebee; color: #c62828; }
-
-input, select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ddd; }
-button { background: #0288d1; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; }
-button:hover { background: #01579b; }
+/* Settings Styles */
+.form-group { margin-bottom: 15px; }
+label { display: block; font-weight: bold; margin-bottom: 5px; }
+select, input { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
