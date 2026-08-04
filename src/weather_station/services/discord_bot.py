@@ -17,10 +17,16 @@ class WeatherBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        """Syncs slash commands and starts the status loop."""
+        """Syncs slash commands instantly to all joined servers."""
+        # This loop makes slash commands appear instantly in your specific servers
+        for guild in self.guilds:
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+        
+        # Also sync globally (can take up to an hour for new servers)
         await self.tree.sync()
+        
         self.presence_task.start()
-
     @tasks.loop(minutes=5)
     async def presence_task(self):
         """Updates the sidebar status with live temperature."""
