@@ -5,6 +5,7 @@ from weather_station.core.state import state
 
 logger = logging.getLogger(__name__)
 
+
 class WeatherService:
     def __init__(self):
         self.weather_url = "https://api.open-meteo.com/v1/forecast"

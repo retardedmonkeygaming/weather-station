@@ -14,8 +14,8 @@ class WeatherLCD:
         d7 = digitalio.DigitalInOut(getattr(board, f"D{LCD_D7}"))
 
         self.lcd = character_lcd.Character_LCD_Mono(
-            rs, en, d4, d5, d6, d7, columns=16, rows=2
-        )
+    rs, en, d4, d5, d6, d7, columns=16, lines=2
+)
         self._create_custom_chars()
 
     def _create_custom_chars(self):
