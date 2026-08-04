@@ -44,5 +44,13 @@ def get_settings_text() -> tuple:
     if idx == 1: return "1. Temp Unit", f"> Mode: [{settings.unit}]"
     if idx == 2: return "2. Buzzer Mode", f"> Sound: [{settings.buzzer_mode}]"
     if idx == 3: return "3. Screen Power", "> Power: [ON]"
+    if idx == 4: return "4. Auto Scroll", "> Rate: [OFF]"
+    if idx == 5: return "5. Daily Alarm", "> State: [OFF]"
+    if idx == 6: return "6. Alarm Hour", "> Hour: [17]"
+    if idx == 7: return "7. Alarm Minute", "> Mins: [00]"
+    if idx == 8: return "8. API Interval", f"> Rate: [{settings.api_rate}m]"
+    if idx == 9: return "9. Log Interval", f"> Rate: [{settings.log_rate}m]"
     if idx == 10: return "10. Factory Reset", "> HOLD 3S RESET"
-    return f"Setting {idx}", "> View on WebUI"
+    
+    # Message at the very end
+    return " Settings Menu ".center(16), "View All WebUI ".center(16)
