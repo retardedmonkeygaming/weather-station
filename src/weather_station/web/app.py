@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Body
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -6,6 +6,7 @@ from weather_station.core.state import state
 from weather_station.core.config import settings
 from weather_station.persistence.database import DatabaseManager
 from pathlib import Path
+from typing import Optional
 
 app = FastAPI()
 db = DatabaseManager()
@@ -39,26 +40,27 @@ async def get_data():
 
 @app.post("/api/save-settings")
 async def save_settings(
-    unit: str = Form(...), buzzer: str = Form(...), screen: str = Form(...),
-    auto_scroll: int = Form(...), alarm_on: str = Form(...),
-    alarm_hr: int = Form(...), alarm_min: int = Form(...),
-    api_rate: int = Form(...), log_rate: int = Form(...)
+    unit: str = Form(...), 
+    buzzer: str = Form(...), 
+    api_rate: str = Form("10"),
+    log_rate: str = Form("15"),
+    alarm_hr: str = Form("17"),
+    alarm_min: str = Form("0")
 ):
-    # Update Global Config
+    # Handle the string-to-int conversion safely to prevent the "Detail: Not Found" crash
     settings.unit = unit
     settings.buzzer_mode = buzzer
-    settings.api_rate = api_rate
-    settings.log_rate = log_rate
-    # Persistence
+    settings.api_rate = int(api_rate) if api_rate.isdigit() else 10
+    
     await db.save_setting("unit", unit)
     await db.save_setting("buzzer", buzzer)
-    await db.save_setting("api_rate", str(api_rate))
     return RedirectResponse(url="/settings", status_code=303)
 
 @app.post("/api/save-page")
 async def save_page(request: Request):
     data = await request.json()
-    p_id, w_type = int(data['page_id']), data['widget_type']
+    p_id = int(data.get("page_id", 1))
+    w_type = data.get("widget_type", "widget_clock")
     state.custom_pages[p_id] = w_type
     await db.save_page_assignment(p_id, w_type)
     return {"status": "success"}

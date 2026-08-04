@@ -4,59 +4,81 @@
     <title>User-Friendly Screen Page Designer</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #eceff1; color: #37474f; }
+        h1 { color: #0288d1; margin-bottom: 10px; }
         .guide-banner { background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: 500; }
-        .page-selector { display: flex; align-items: center; gap: 10px; background: white; padding: 14px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 20px; }
-        .page-btn { padding: 8px 16px; background: #cfd8dc; border-radius: 20px; cursor: pointer; font-weight: bold; border: none; }
+        .page-selector { display: flex; align-items: center; gap: 10px; background: white; padding: 14px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 20px; flex-wrap: wrap; }
+        .page-btn { padding: 8px 16px; background: #cfd8dc; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 14px; border: none; color: #455a64; transition: 0.2s; }
         .page-btn.active { background: #0288d1; color: white; }
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
-        .widget-card { background: white; border: 2px solid #b0bec5; border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
+        .widget-card { background: white; border: 2px solid #b0bec5; border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 3px 6px rgba(0,0,0,0.05); }
+        .widget-card:hover { border-color: #0288d1; transform: translateY(-3px); }
         .widget-card.selected { border-color: #2e7d32; background-color: #e8f5e9; }
-        .lcd-preview-card { background: #1b2a1a; color: #33ff33; font-family: 'Courier New', monospace; padding: 15px; border-radius: 8px; border: 4px solid #2e4d2a; font-size: 18px; white-space: pre; display:inline-block; margin-top: 10px; }
+        .lcd-preview-card { background: #1b2a1a; color: #33ff33; font-family: 'Courier New', monospace; padding: 15px; border-radius: 8px; border: 4px solid #2e4d2a; font-size: 18px; font-weight: bold; white-space: pre; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-top: 20px; display:inline-block; }
     </style>
 </head>
 <body>
-    <header><h1>LCD Screen Designer</h1><nav><a href="/">Dashboard</a></nav></header>
-    <div class="container">
-        <div class="guide-banner">🎯 <strong>How it works:</strong> Pick a Page tab, click a Widget card, then hit <strong>Apply</strong>.</div>
-        <div class="page-selector">
-            <strong>Select Page:</strong>
-            <button class="page-btn active" onclick="activePage=1">Page 1</button>
-            <button class="page-btn" onclick="activePage=2">Page 2</button>
-            <button class="page-btn" onclick="activePage=3">Page 3</button>
-            <button class="page-btn" onclick="activePage=4">Page 4</button>
-            <button class="page-btn" onclick="activePage=5">Page 5</button>
-            <button class="page-btn" onclick="activePage=6">Page 6</button>
-        </div>
-        <div class="grid-container">
-            <div class="widget-card" id="card_widget_indoor" onclick="selectWidget('widget_indoor')">🌡️<br>Indoor Climate</div>
-            <div class="widget-card" id="card_widget_outdoor" onclick="selectWidget('widget_outdoor')">☀️<br>Outdoor Weather</div>
-            <div class="widget-card" id="card_widget_moon" onclick="selectWidget('widget_moon')">🌙<br>Moon Phase</div>
-            <div class="widget-card" id="card_widget_clock" onclick="selectWidget('widget_clock')">🕒<br>Digital Clock</div>
-            <div class="widget-card" id="card_widget_forecast" onclick="selectWidget('widget_forecast')">📅<br>UV/Forecast</div>
-            <div class="widget-card" id="card_widget_aqi" onclick="selectWidget('widget_aqi')">🍃<br>Air Quality</div>
-        </div>
-        <div class="card" style="margin-top:20px;">
-            <h3>Live LCD 16x2 Preview:</h3>
-            <div class="lcd-preview-card" id="lcd-preview">Loading...</div><br>
-            <button onclick="savePage()" style="margin-top:10px; width:auto; padding:10px 30px;">💾 Apply & Save to LCD</button>
-        </div>
+    <h1>LCD Screen Designer</h1>
+    <header style="background:none; padding:0; box-shadow:none;"><nav><a href="/" style="color:#0288d1;">Dashboard</a></nav></header>
+
+    <div class="guide-banner">
+        🎯 <strong>How it works:</strong> Pick a LCD Page tab below, then click any Widget card. Click <strong>Apply</strong> to sync!
     </div>
+
+    <div class="page-selector">
+        <strong>Select LCD Screen Page:</strong>
+        <button class="page-btn active" id="btn1" onclick="switchPage(1)">Page 1</button>
+        <button class="page-btn" id="btn2" onclick="switchPage(2)">Page 2</button>
+        <button class="page-btn" id="btn3" onclick="switchPage(3)">Page 3</button>
+        <button class="page-btn" id="btn4" onclick="switchPage(4)">Page 4</button>
+        <button class="page-btn" id="btn5" onclick="switchPage(5)">Page 5</button>
+        <button class="page-btn" id="btn6" onclick="switchPage(6)">Page 6</button>
+    </div>
+
+    <div class="grid-container">
+        <div class="widget-card" id="card_widget_indoor" onclick="selectWidget('widget_indoor')">🌡️<br>Indoor Climate</div>
+        <div class="widget-card" id="card_widget_outdoor" onclick="selectWidget('widget_outdoor')">☀️<br>Outdoor Weather</div>
+        <div class="widget-card" id="card_widget_moon" onclick="selectWidget('widget_moon')">🌙<br>Moon Phase</div>
+        <div class="widget-card" id="card_widget_aqi" onclick="selectWidget('widget_aqi')">🍃<br>Air Quality</div>
+        <div class="widget-card" id="card_widget_clock" onclick="selectWidget('widget_clock')">🕒<br>Digital Clock</div>
+        <div class="widget-card" id="card_widget_forecast" onclick="selectWidget('widget_forecast')">📅<br>UV/Forecast</div>
+    </div>
+
+    <div style="margin-top:25px; background:white; padding:20px; border-radius:8px;">
+        <h3>Physical LCD 16x2 Display Live Preview:</h3>
+        <div class="lcd-preview-card" id="lcd-preview">Loading...</div><br>
+        <button onclick="savePage()" style="margin-top:20px; background:#0288d1; color:white; border:none; padding:12px 24px; border-radius:5px; font-weight:bold; cursor:pointer;">💾 Apply & Save to LCD Display</button>
+    </div>
+
     <script>
-        let activePage = 1; let selectedWidget = "";
-        function selectWidget(w) { 
-            selectedWidget = w; 
+        let activePage = 1;
+        let selectedWidgetType = "";
+
+        function switchPage(p) {
+            activePage = p;
+            document.querySelectorAll('.page-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn'+p).classList.add('active');
+        }
+
+        function selectWidget(w) {
+            selectedWidgetType = w;
             document.querySelectorAll('.widget-card').forEach(c => c.classList.remove('selected'));
             document.getElementById('card_'+w).classList.add('selected');
         }
+
         async function savePage() {
+            if(!selectedWidgetType) return alert("Select a widget first!");
             await fetch('/api/save-page', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({page_id: activePage, widget_type: selectedWidget})
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({page_id: activePage, widget_type: selectedWidgetType})
             });
             alert("Page " + activePage + " Updated!");
         }
+
         setInterval(async () => {
-            const r = await fetch('/api/data'); const d = await r.json();
+            const r = await fetch('/api/data');
+            const d = await r.json();
             document.getElementById('lcd-preview').innerText = d.lcd_line1 + "\n" + d.lcd_line2;
         }, 1000);
     </script>
