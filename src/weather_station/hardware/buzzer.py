@@ -1,25 +1,28 @@
-import time
-from gpiozero import Buzzer as GPIOZeroBuzzer
-from weather_station.hardware.pins import BUZZER_PIN
+async def run_loop(self):
+        while True:
+            # Audible Error Alert (Only beeps once when error starts)
+            if state.dht_error and not state.last_dht_error:
+                self.buzzer.error_alert()
+                state.last_dht_error = True
+            elif not state.dht_error:
+                state.last_dht_error = False
 
-class WeatherBuzzer:
-    def __init__(self):
-        self.buzzer = GPIOZeroBuzzer(BUZZER_PIN)
-
-    def beep(self, duration=0.1, repeats=1):
-        for _ in range(repeats):
-            self.buzzer.on()
-            time.sleep(duration)
-            self.buzzer.off()
-            if repeats > 1:
-                time.sleep(0.05)
-
-    def error_alert(self):
-        """Rapid triple beep for system errors."""
-        self.beep(duration=0.05, repeats=3)
-
-    def alarm_tone(self):
-        """The tone used for the daily alarm."""
-        self.buzzer.on()
-        time.sleep(0.2)
-        self.buzzer.off()
+            if self.sensors.is_pressed():
+                start = time.time()
+                # Light "Tick" for tactile feedback
+                self.buzzer.beep(0.02) 
+                while self.sensors.is_pressed():
+                    await asyncio.sleep(0.05)
+                
+                duration = time.time() - start
+                
+                if duration > 3: # Long press to enter/exit settings
+                    state.in_settings_mode = not state.in_settings_mode
+                    state.settings_index = 1
+                    self.buzzer.beep(0.1, repeats=2)
+                else: # Short tap
+                    if state.in_settings_mode:
+                        state.settings_index = 1 if state.settings_index >= 10 else state.settings_index + 1
+                    else:
+                        state.current_page = 1 if state.current_page >= 6 else state.current_page + 1
+            await asyncio.sleep(0.05)

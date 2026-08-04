@@ -19,34 +19,32 @@ class WeatherService:
         if code in [95, 96, 99]: return "\x04", "Storm"
         return "\x05", "Clear"
 
-    async def fetch_all(self):
+async def fetch_all(self):
         params = {
             "latitude": settings.latitude,
             "longitude": settings.longitude,
-            "current": "temperature_2m,relative_humidity_2m,weather_code",
-            "daily": "temperature_2m_max,temperature_2m_min",
+            "current": "temperature_2m,relative_humidity_2m,weather_code,uv_index", # Added uv_index
+            "daily": "temperature_2m_max,temperature_2m_min,uv_index_max",        # Added uv_index_max
             "timezone": "auto"
         }
-        aqi_params = {
-            "latitude": settings.latitude,
-            "longitude": settings.longitude,
-            "current": "us_aqi,pm10,pm2_5"
-        }
-
+        # ... (rest of the setup) ...
         async with aiohttp.ClientSession() as session:
             try:
-                # Weather Fetch
                 async with session.get(self.weather_url, params=params) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         state.outdoor_temp = f"{data['current']['temperature_2m']:.1f}"
-                        state.outdoor_humid = f"{data['current']['relative_humidity_2m']}"
                         state.outdoor_max = f"{data['daily']['temperature_2m_max'][0]:.1f}"
                         state.outdoor_min = f"{data['daily']['temperature_2m_min'][0]:.1f}"
+                        
+                        # NEW: UV Index Mapping
+                        state.uv_index = f"{data['current']['uv_index']:.1f}"
+                        state.uv_max = f"{data['daily']['uv_index_max'][0]:.1f}"
+                        
                         state.weather_icon, state.weather_text = self._get_weather_info(data['current']['weather_code'])
                         state.wifi_error = False
                     else: state.wifi_error = True
-
+                    
                 # AQI Fetch
                 async with session.get(self.aqi_url, params=aqi_params) as resp:
                     if resp.status == 200:

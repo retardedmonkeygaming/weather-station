@@ -36,6 +36,19 @@ class AppState:
     # Web UI Communication
     last_line1: str = ""
     last_line2: str = ""
+
+    # UV Index Data
+    uv_index: str = "N/A"
+    uv_max: str = "N/A"
+    
+    # Track error state to prevent infinite beeping
+    last_dht_error: bool = False
+    last_wifi_error: bool = False
+    
+    # Weather description (Clear, Rain, etc.)
+    weather_icon: str = "\x05"
+    weather_text: str = "Clear"
+    # ...
     
     custom_pages: Dict[int, str] = field(default_factory=dict)
 

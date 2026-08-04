@@ -39,6 +39,18 @@ def get_widget_text(widget_type: str) -> tuple:
         m = calculate_moon_phase()
         return f"Moon: \x07 {m['short_name']}", f"Illum: {m['illumination']}%"
 
+    elif widget_type == "widget_forecast":
+        
+    # Centered Min/Max and New UV line
+        line1 = f"L:{state.outdoor_min} H:{state.outdoor_max}".center(16)
+        line2 = f"UV:{state.uv_index} Max:{state.uv_max}".center(16)
+        return line1, line2
+
+    elif widget_type == "widget_error_dht":
+        return "  [!] ERROR [!]  ".center(16), "  DHT11 MISSING  ".center(16)
+
+    elif widget_type == "widget_error_wifi":
+        return "  [!] ERROR [!]  ".center(16), "  WIFI OFFLINE   ".center(16)
     return "Weather Station", "v3.0 Ready"
 
 def get_settings_text() -> tuple:

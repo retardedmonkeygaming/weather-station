@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LCD Designer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header style="background: #0288d1; color: white; padding: 15px; display: flex; justify-content: space-between;">
+        <h2 style="margin:0;">UI Designer</h2>
+        <nav><a href="/" style="color:white; font-weight:bold; text-decoration:none;">Back to Dashboard</a></nav>
+    </header>
+    <div class="container" style="padding: 20px;">
+        <div class="card">
+            <h3>Assign Widget to Page</h3>
+            <form action="/api/save-page" method="post">
+                <p>Select Page Number: 
+                <select name="page_id">
+                    <option value="1">Page 1</option><option value="2">Page 2</option>
+                    <option value="3">Page 3</option><option value="4">Page 4</option>
+                    <option value="5">Page 5</option><option value="6">Page 6</option>
+                </select></p>
+                <p>Select Widget:
+                <select name="widget_type">
+                    <option value="widget_clock">Clock</option>
+                    <option value="widget_indoor">Indoor Stats</option>
+                    <option value="widget_outdoor">Outdoor Stats</option>
+                    <option value="widget_forecast">UV & Forecast</option>
+                    <option value="widget_aqi">Air Quality</option>
+                    <option value="widget_moon">Moon Phase</option>
+                    <option value="widget_pi">System Info</option>
+                </select></p>
+                <button type="submit" style="background:#0288d1; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">Apply to LCD</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
