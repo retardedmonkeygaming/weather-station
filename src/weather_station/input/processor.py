@@ -10,64 +10,47 @@ class InputProcessor:
         self.tap_count = 0
         self.last_tap_time = 0
 
-    async def run_loop(self):
+async def run_loop(self):
         while True:
             if self.sensors.is_pressed():
                 self.buzzer.tick()
-                press_start = time.time()
-                notified_5s = False
-                notified_10s = False
-                
-                while self.sensors.is_pressed():
-                    elapsed = time.time() - press_start
-                    
-                    # Real-time LCD feedback for holds
-                    if elapsed >= 10.0:
-                        if not notified_10s:
-                            self.buzzer.beep(0.1)
-                            notified_10s = True
-                        state.system_message = ("RELEASE FOR:", "POWER OFF")
-                    elif elapsed >= 5.0:
-                        if not notified_5s:
-                            self.buzzer.beep(0.1)
-                            notified_5s = True
-                        state.system_message = ("RELEASE FOR:", "REBOOT SYSTEM")
-                    elif elapsed >= 3.0 and state.in_settings_mode and state.settings_index == 10:
-                        state.system_message = ("RELEASE TO:", "FACTORY RESET")
-                    
-                    await asyncio.sleep(0.05)
-                
-                # Button Released
-                duration = time.time() - press_start
-                state.system_message = None # Clear the message immediately
+                start = time.time()
+                while self.sensors.is_pressed(): await asyncio.sleep(0.05)
+                duration = time.time() - start
 
-                if duration >= 10.0:
-                    self.buzzer.beep(0.5, repeats=2)
-                    os.system("sudo shutdown -h now")
-                elif duration >= 5.0:
-                    self.buzzer.beep(0.3)
-                    os.system("sudo reboot")
-                elif duration >= 3.0:
-                    if state.in_settings_mode and state.settings_index == 10:
-                        self.buzzer.beep(0.1, repeats=3)
-                        # Placeholder for factory reset logic
-                        state.in_settings_mode = False
-                    else:
-                        state.in_settings_mode = not state.in_settings_mode
-                        state.settings_index = 1
-                        self.buzzer.beep(0.1, repeats=2)
+                if duration > 3.0: # RESET / EXIT
+                    state.is_lyric_active = False
+                    state.lyric_state = "IDLE"
+                    self.buzzer.beep(0.1, repeats=2)
+                
                 elif duration < 0.6:
-                    # Snappy single tap
                     self.tap_count += 1
                     self.last_tap_time = time.time()
 
-            # Process Tap Logic
-            if self.tap_count > 0 and (time.time() - self.last_tap_time) > 0.3:
+            # EVALUATE GESTURES
+            if self.tap_count > 0 and (time.time() - self.last_tap_time) > 0.4:
+                # SINGLE TAP
                 if self.tap_count == 1:
-                    if state.in_settings_mode:
-                        state.settings_index = 1 if state.settings_index >= 10 else state.settings_index + 1
+                    if state.is_lyric_active and state.lyric_state == "MENU":
+                        state.selected_song_index = (state.selected_song_index + 1) % len(state.songs_list)
                     else:
                         state.current_page = 1 if state.current_page >= 6 else state.current_page + 1
+                
+                # DOUBLE TAP (Select Song)
+                elif self.tap_count == 2:
+                    if state.is_lyric_active and state.lyric_state == "MENU":
+                        # Trigger Playback Logic (Coming in next step)
+                        pass
+                    else:
+                        # Enter Lyric Menu from Weather Mode
+                        state.is_lyric_active = True
+                        state.lyric_state = "MENU"
+                        state.songs_list = await self.db.get_all_songs()
+                
+                # TRIPLE TAP (Stop Playback)
+                elif self.tap_count == 3:
+                    state.lyric_state = "IDLE"
+                    state.is_lyric_active = False
+
                 self.tap_count = 0
-            
             await asyncio.sleep(0.05)
