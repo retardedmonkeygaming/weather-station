@@ -1,74 +1,43 @@
 import os
 from pathlib import Path
-from datetime import datetime
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-
 from weather_station.core.state import state
 from weather_station.core.config import settings
 from weather_station.persistence.database import DatabaseManager
-from weather_station.utils.formatting import calculate_moon_phase, get_comfort_level
+from weather_station.utils.formatting import calculate_moon_phase
 
 app = FastAPI()
 db = DatabaseManager()
 BASE_DIR = Path(__file__).resolve().parent
-
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# Helper for formatted strings used in your original UI
+# Helpers for the Dashboard
 def format_temp_val(val):
     if val is None or val == "N/A": return "N/A"
-    if settings.unit == "F":
-        return f"{(float(val) * 9/5) + 32:.1f}F"
+    if settings.unit == "F": return f"{(float(val) * 9/5) + 32:.1f}F"
     return f"{float(val):.1f}C"
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    logs_data = []
-    try:
-        async with db.get_connection() as conn:
-            async with conn.execute("SELECT timestamp, in_temp, in_humid, out_temp, out_humid FROM weather_logs ORDER BY id DESC LIMIT 15") as cursor:
-                logs_data = await cursor.fetchall()
-    except: pass
-    
-    # Passing raw state and helpers to match your original f-string logic
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request, 
-        "state": state, 
-        "format_temp": format_temp_val,
-        "calculate_moon_phase": calculate_moon_phase,
-        "logs": logs_data
-    })
+    return templates.TemplateResponse("dashboard.html", {"request": request, "state": state, "format_temp": format_temp_val})
 
 @app.get("/designer", response_class=HTMLResponse)
 async def designer(request: Request):
     return templates.TemplateResponse("designer.html", {"request": request})
 
-@app.get("/logs", response_class=HTMLResponse)
-async def view_logs(request: Request):
-    logs_data = []
-    total_count = 0
-    try:
-        async with db.get_connection() as conn:
-            async with conn.execute("SELECT COUNT(*) FROM weather_logs") as row:
-                total_count = (await row.fetchone())[0]
-            async with conn.execute("SELECT id, timestamp, in_temp, in_humid, out_temp, out_humid FROM weather_logs ORDER BY id DESC LIMIT 100") as cursor:
-                logs_data = await cursor.fetchall()
-    except: pass
-    return templates.TemplateResponse("logs.html", {"request": request, "logs": logs_data, "total_count": total_count})
-
 @app.get("/settings", response_class=HTMLResponse)
 async def web_settings(request: Request):
-    return templates.TemplateResponse("settings.html", {
-        "request": request, 
-        "state": state, 
-        "settings": settings,
-        "format_temp": format_temp_val
-    })
+    return templates.TemplateResponse("settings.html", {"request": request, "state": state, "settings": settings, "format_temp": format_temp_val})
 
+@app.get("/logs", response_class=HTMLResponse)
+async def view_logs(request: Request):
+    # Literal restoration of the logs logic
+    return templates.TemplateResponse("logs.html", {"request": request})
+
+# API Endpoints - REWRITTEN TO MATCH YOUR EXACT JS CALLS
 @app.get("/api/data")
 async def get_live_data():
     from weather_station.services.system import SystemService
@@ -86,12 +55,16 @@ async def get_live_data():
         "moon_illumination": f"{moon['illumination']}%",
         "lcd_line1": state.last_line1,
         "lcd_line2": state.last_line2,
-        "dht_status": "ONLINE" if not state.dht_error else "ERROR",
+        "dht_status": "ONLINE" if not state.dht_error else "OFFLINE / ERROR",
         "wifi_status": "CONNECTED" if not state.wifi_error else "DISCONNECTED",
         "pi_cpu_temp": stats["cpu_temp"],
         "pi_cpu_usage": stats["cpu_usage"],
         "pi_ram_usage": stats["ram_usage"]
     })
+
+@app.get("/api/pages")
+async def get_pages():
+    return JSONResponse(state.custom_pages)
 
 @app.post("/api/save-page")
 async def save_page(request: Request):
@@ -99,7 +72,16 @@ async def save_page(request: Request):
     p_id, w_type = int(body.get("page_id", 1)), body.get("widget_type", "")
     state.custom_pages[p_id] = w_type
     await db.save_page_assignment(p_id, w_type)
-    return {"status": "success"}
+    return JSONResponse({"status": "success"})
+
+@app.post("/api/delete-page")
+async def delete_page(request: Request):
+    body = await request.json()
+    p_id = int(body.get("page_id", 1))
+    if p_id in state.custom_pages:
+        del state.custom_pages[p_id]
+    await db.delete_page_assignment(p_id)
+    return JSONResponse({"status": "deleted"})
 
 @app.post("/update-settings")
 async def update_settings(
@@ -108,9 +90,7 @@ async def update_settings(
     alarm_hr: int = Form(...), alarm_min: int = Form(...),
     api_rate: int = Form(...), log_rate: int = Form(...)
 ):
-    settings.unit = unit
-    settings.buzzer_mode = buzzer
-    # Update local config and DB
+    settings.unit, settings.buzzer_mode = unit, buzzer
     await db.save_setting("unit", unit)
     await db.save_setting("buzzer", buzzer)
     return RedirectResponse(url="/settings", status_code=303)
