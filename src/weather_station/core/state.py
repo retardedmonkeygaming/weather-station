@@ -47,10 +47,4 @@ class AppState:
     # Designer overrides
     custom_pages: Dict[int, str] = field(default_factory=dict)
 
-    # --- LYRICPULSE INTEGRATION ---
-    is_lyric_active: bool = False
-    current_song_title: str = ""
-    current_lyric_line1: str = ""
-    current_lyric_line2: str = ""
-
 state = AppState()

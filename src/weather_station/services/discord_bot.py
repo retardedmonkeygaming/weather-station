@@ -83,16 +83,3 @@ class WeatherBot(commands.Bot):
         embed.add_field(name="☀️ UV Index", value=f"Current: {state.uv_index} (Peak: {state.uv_max})", inline=True)
         embed.set_footer(text=f"System Health: {SystemService.get_stats()['cpu_temp']}")
         await interaction.response.send_message(embed=embed)
-
-    @commands.command()
-    async def play(self, ctx, *, song_title: str):
-        """Command: !play <title> - Starts LyricPulse mode."""
-        # 1. Find song in DB
-        # 2. Set state.is_lyric_active = True
-        # 3. Start the playback task
-        await ctx.send(f"🎵 **LyricPulse:** Now playing {song_title}...")
-        
-        # Post to #lyric-feed
-        channel = discord.utils.get(ctx.guild.channels, name="lyric-feed")
-        if channel:
-            await channel.send(f"🎧 **Now Playing on Pi:** {song_title}")
