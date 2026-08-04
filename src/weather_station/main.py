@@ -16,17 +16,6 @@ async def weather_fetcher(service):
         await service.fetch_all()
         await asyncio.sleep(settings.api_rate * 60)
 
-async def dht_reader(sensors):
-    while True:
-        temp, humid = sensors.read_dht()
-        if temp is not None:
-            state.indoor_temp = temp + settings.dht_temp_offset
-            state.indoor_humid = humid
-            state.dht_error = False
-        else:
-            state.dht_error = True
-        await asyncio.sleep(3)
-
 async def run_web_server():
     """Runs Uvicorn in an async-friendly way."""
     config = uvicorn.Config(
@@ -38,40 +27,52 @@ async def run_web_server():
     server = uvicorn.Server(config)
     await server.serve()
 
+async def run_diagnostics(lcd, sensors, buzzer, weather_service):
+    """Restores your original on-boot diagnostics and loading screen."""
+    lcd.clear()
+    lcd.write_lines(" WEATHER STATION", " v3.0 Booting...")
+    buzzer.beep(0.06, repeats=2)
+    await asyncio.sleep(1.2)
+
+    # Loading Animation
+    lcd.clear()
+    for i in range(16):
+        lcd.write_lines("Loading System..", "\x06" * (i + 1))
+        await asyncio.sleep(0.08)
+
+    # Hardware Check
+    temp, _ = sensors.read_dht()
+    if temp is None:
+        state.dht_error = True
+        lcd.write_lines("Error: DHT11", "Sensor Missing")
+        buzzer.error_alert()
+        await asyncio.sleep(2)
+
+    # WiFi Check
+    await weather_service.fetch_all()
+    if state.wifi_error:
+        lcd.write_lines("Error: WiFi", "Not Connected")
+        buzzer.error_alert()
+        await asyncio.sleep(2)
+
 async def main():
     setup_logging()
-    logger = logging.getLogger("Main")
-
-    # Initialize Hardware & DB
     db = DatabaseManager()
     await db.initialize()
     
-    # Initialize Hardware
     lcd = WeatherLCD()
     sensors = WeatherSensors()
     buzzer = WeatherBuzzer()
-
-    # Initialize Services
     weather_service = WeatherService()
-    display_manager = DisplayManager(lcd)
-    input_processor = InputProcessor(sensors, buzzer)
+    
+    # RUN DIAGNOSTICS FIRST
+    await run_diagnostics(lcd, sensors, buzzer, weather_service)
 
     logger.info("Starting Weather Station Modules...")
-
-    # We use gather to run all background tasks AND the web server together
-    try:
-        await asyncio.gather(
-            weather_fetcher(weather_service),
-            dht_reader(sensors),
-            display_manager.run_loop(),
-            input_processor.run_loop(),
-            run_web_server()
-        )
-    except Exception as e:
-        logger.error(f"Critical System Failure: {e}")
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    await asyncio.gather(
+        weather_fetcher(weather_service),
+        dht_reader(sensors),
+        DisplayManager(lcd).run_loop(),
+        InputProcessor(sensors, buzzer).run_loop(),
+        run_web_server()
+    )

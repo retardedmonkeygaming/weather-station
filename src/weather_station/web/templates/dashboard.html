@@ -1,46 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Weather Dashboard</title>
+    <title>Pi Weather Station</title>
     <link rel="stylesheet" href="/static/style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-    <header style="background: #0288d1; color: white; padding: 15px; display: flex; justify-content: space-between;">
-        <h2 style="margin:0;">Weather Station</h2>
+    <header>
+        <h1 style="margin:0; font-size: 22px;">Weather Station Dashboard</h1>
         <nav>
-            <a href="/" style="color:white; font-weight:bold; margin-left:15px; text-decoration:none;">Dashboard</a>
-            <a href="/designer" style="color:white; font-weight:bold; margin-left:15px; text-decoration:none;">Designer</a>
-            <a href="/settings" style="color:white; font-weight:bold; margin-left:15px; text-decoration:none;">Settings</a>
+            <a href="/" class="nav-link">Dashboard</a>
+            <a href="/designer" class="nav-link">UI Designer</a>
+            <a href="/settings" class="nav-link">Settings</a>
         </nav>
     </header>
 
-    <div style="padding: 20px; max-width: 1200px; margin: auto;">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-            <!-- Live LCD Card -->
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <h3 style="color:#0288d1; margin-top:0;">Live LCD Display</h3>
-                <div id="lcd-screen" style="background: #1b2a1a; color: #33ff33; font-family: 'Courier New', monospace; padding: 20px; border-radius: 8px; border: 6px solid #2e4d2a; font-size: 24px; white-space: pre; text-align: center;">
-                    Loading...
-                </div>
-            </div>
+    <div class="container">
+        <div class="card">
+            <h3>Live LCD Preview</h3>
+            <div class="lcd-box" id="lcd-screen">Line 1\nLine 2</div>
+        </div>
 
-            <!-- Stats Card -->
-            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <h3 style="color:#0288d1; margin-top:0;">Quick Stats</h3>
-                <p>Indoor: <strong id="in-temp">--</strong></p>
-                <p>Outdoor: <strong id="out-temp">--</strong></p>
-            </div>
+        <div class="card">
+            <h3>System Status</h3>
+            <p>Indoor Sensor: <span id="dht-status" class="status-badge">Checking...</span></p>
+            <p>WiFi Connection: <span id="wifi-status" class="status-badge">Checking...</span></p>
+            <hr>
+            <p>Indoor: <b id="in-temp">--</b></p>
+            <p>Outdoor: <b id="out-temp">--</b></p>
         </div>
     </div>
 
     <script>
         async function refresh() {
-            const r = await fetch('/api/data');
-            const d = await r.json();
-            document.getElementById('lcd-screen').innerText = d.lcd_line1 + "\n" + d.lcd_line2;
-            document.getElementById('in-temp').innerText = d.indoor_temp;
-            document.getElementById('out-temp').innerText = d.outdoor_temp;
+            try {
+                const r = await fetch('/api/data');
+                const d = await r.json();
+                document.getElementById('lcd-screen').innerText = d.lcd_line1 + "\n" + d.lcd_line2;
+                document.getElementById('in-temp').innerText = d.indoor_temp + " / " + d.indoor_humid;
+                document.getElementById('out-temp').innerText = d.outdoor_temp;
+                
+                const dht = document.getElementById('dht-status');
+                dht.className = "status-badge " + (d.dht_status === "ONLINE" ? "online" : "error");
+                dht.innerText = d.dht_status;
+            } catch(e) {}
         }
         setInterval(refresh, 1000);
     </script>
