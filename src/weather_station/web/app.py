@@ -1,18 +1,14 @@
-import os
-from pathlib import Path
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-
 from weather_station.core.state import state
 from weather_station.core.config import settings
 from weather_station.persistence.database import DatabaseManager
+from pathlib import Path
 
 app = FastAPI()
 db = DatabaseManager()
-
-# Absolute path resolution for Pi OS
 BASE_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -22,11 +18,11 @@ async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request, "state": state})
 
 @app.get("/designer", response_class=HTMLResponse)
-async def designer_page(request: Request):
+async def designer(request: Request):
     return templates.TemplateResponse("designer.html", {"request": request, "state": state})
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request):
+async def web_settings(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request, "state": state, "settings": settings})
 
 @app.get("/api/data")
@@ -43,22 +39,26 @@ async def get_data():
 
 @app.post("/api/save-settings")
 async def save_settings(
-    unit: str = Form(...), 
-    buzzer: str = Form(...), 
-    api_rate: int = Form(...)
+    unit: str = Form(...), buzzer: str = Form(...), screen: str = Form(...),
+    auto_scroll: int = Form(...), alarm_on: str = Form(...),
+    alarm_hr: int = Form(...), alarm_min: int = Form(...),
+    api_rate: int = Form(...), log_rate: int = Form(...)
 ):
-    # Update live settings object
+    # Update Global Config
     settings.unit = unit
     settings.buzzer_mode = buzzer
     settings.api_rate = api_rate
-    # Save to Database
+    settings.log_rate = log_rate
+    # Persistence
     await db.save_setting("unit", unit)
-    await db.save_setting("buzzer_mode", buzzer)
+    await db.save_setting("buzzer", buzzer)
     await db.save_setting("api_rate", str(api_rate))
     return RedirectResponse(url="/settings", status_code=303)
 
 @app.post("/api/save-page")
-async def save_page(page_id: int = Form(...), widget_type: str = Form(...)):
-    state.custom_pages[page_id] = widget_type
-    await db.save_page_assignment(page_id, widget_type)
-    return RedirectResponse(url="/designer", status_code=303)
+async def save_page(request: Request):
+    data = await request.json()
+    p_id, w_type = int(data['page_id']), data['widget_type']
+    state.custom_pages[p_id] = w_type
+    await db.save_page_assignment(p_id, w_type)
+    return {"status": "success"}

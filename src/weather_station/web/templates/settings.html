@@ -1,32 +1,40 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Settings</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
+<head><title>Station Settings</title><link rel="stylesheet" href="/static/style.css"></head>
 <body>
-    <header>
-        <h1>Station Preferences</h1>
-        <nav><a href="/">Back to Dashboard</a></nav>
-    </header>
+    <header><h1>System Settings & Calibration</h1><nav><a href="/">Dashboard</a></nav></header>
     <div class="container">
         <div class="card">
-            <h3>Adjust Configuration</h3>
             <form action="/api/save-settings" method="post">
-                <label>Temp Unit:</label>
-                <select name="unit">
-                    <option value="C">Celsius (°C)</option>
-                    <option value="F">Fahrenheit (°F)</option>
-                </select>
-                <label>Buzzer Mode:</label>
-                <select name="buzzer">
-                    <option value="ALL">All Sounds</option>
-                    <option value="ERR">Errors Only</option>
-                    <option value="MUTE">Mute</option>
-                </select>
-                <label>Refresh Rate (Mins):</label>
-                <input type="number" name="api_rate" value="10">
-                <button type="submit">Save All Settings</button>
+                <h3>Device Preferences</h3>
+                <label>1. Temp Unit:</label>
+                <select name="unit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select>
+                
+                <label>2. Buzzer Mode:</label>
+                <select name="buzzer"><option value="ALL">ALL</option><option value="ERR">ERR Only</option><option value="MUTE">MUTE</option></select>
+                
+                <label>3. Screen Power:</label>
+                <select name="screen"><option value="ON">ON</option><option value="OFF">OFF</option></select>
+
+                <label>4. Auto Scroll:</label>
+                <select name="auto_scroll"><option value="0">OFF</option><option value="3">3s</option><option value="5">5s</option><option value="10">10s</option></select>
+
+                <label>5. Daily Alarm:</label>
+                <select name="alarm_on"><option value="OFF">OFF</option><option value="ON">ON</option></select>
+
+                <label>6 & 7. Alarm Time:</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="number" name="alarm_hr" placeholder="HR" min="0" max="23">
+                    <input type="number" name="alarm_min" placeholder="MIN" min="0" max="59">
+                </div>
+
+                <label>8. API Interval (Mins):</label>
+                <select name="api_rate"><option value="5">5m</option><option value="10">10m</option><option value="15">15m</option></select>
+
+                <label>9. Log Interval (Mins):</label>
+                <select name="log_rate"><option value="5">5m</option><option value="15">15m</option><option value="30">30m</option></select>
+
+                <button type="submit" style="margin-top:20px;">💾 Save All Settings</button>
             </form>
         </div>
     </div>
