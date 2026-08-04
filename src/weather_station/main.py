@@ -2,10 +2,10 @@ import asyncio
 import logging
 from weather_station.core.state import state
 from weather_station.core.config import settings
-from weather_station.utils.logging_setup import setup_logging
+from weather_station.utils.logging_setup import setup_logging  # Correct path
 from weather_station.persistence.database import DatabaseManager
 from weather_station.hardware import WeatherLCD, WeatherSensors, WeatherBuzzer
-from weather_station.services import WeatherService, SystemService
+from weather_station.services import WeatherService, SystemService  # Correct path
 from weather_station.display.manager import DisplayManager
 from weather_station.input.processor import InputProcessor
 from weather_station.web.app import app
