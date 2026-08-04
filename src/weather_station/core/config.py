@@ -11,6 +11,9 @@ class WeatherSettings(BaseSettings):
     web_host: str = "0.0.0.0"
     web_port: int = 8000
     dht_temp_offset: float = 0.0
+    
+    # ADD THIS LINE
+    discord_token: str = "" 
 
     model_config = SettingsConfigDict(env_prefix="WEATHER_", env_file=".env", extra="ignore")
 
