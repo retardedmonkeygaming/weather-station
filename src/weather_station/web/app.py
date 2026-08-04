@@ -4,26 +4,29 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+
 from weather_station.core.state import state
 from weather_station.core.config import settings
+from weather_station.persistence.database import DatabaseManager
 
 app = FastAPI()
+db = DatabaseManager()
 
-# Absolute path resolution
+# Absolute path resolution for Pi OS
 BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request, "state": state})
 
 @app.get("/designer", response_class=HTMLResponse)
-async def designer(request: Request):
+async def designer_page(request: Request):
     return templates.TemplateResponse("designer.html", {"request": request, "state": state})
 
 @app.get("/settings", response_class=HTMLResponse)
-async def view_settings(request: Request):
+async def settings_page(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request, "state": state, "settings": settings})
 
 @app.get("/api/data")
@@ -38,8 +41,24 @@ async def get_data():
         "wifi_status": "ONLINE" if not state.wifi_error else "OFFLINE"
     }
 
+@app.post("/api/save-settings")
+async def save_settings(
+    unit: str = Form(...), 
+    buzzer: str = Form(...), 
+    api_rate: int = Form(...)
+):
+    # Update live settings object
+    settings.unit = unit
+    settings.buzzer_mode = buzzer
+    settings.api_rate = api_rate
+    # Save to Database
+    await db.save_setting("unit", unit)
+    await db.save_setting("buzzer_mode", buzzer)
+    await db.save_setting("api_rate", str(api_rate))
+    return RedirectResponse(url="/settings", status_code=303)
+
 @app.post("/api/save-page")
 async def save_page(page_id: int = Form(...), widget_type: str = Form(...)):
     state.custom_pages[page_id] = widget_type
-    # Logic to save to DB will be triggered here
+    await db.save_page_assignment(page_id, widget_type)
     return RedirectResponse(url="/designer", status_code=303)
