@@ -11,69 +11,69 @@ logger = logging.getLogger("DiscordBot")
 class WeatherBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        intents.message_content = True  # Allows reading "How is it inside?"
-        intents.members = True          # For future permissions
+        intents.message_content = True 
+        intents.members = True          
         
         super().__init__(command_prefix="!", intents=intents)
-        self.persona = "Weather Station Assistant"
 
     async def setup_hook(self):
-        """Called when the bot starts to sync slash commands."""
+        """Syncs slash commands and starts the status loop."""
         await self.tree.sync()
         self.presence_task.start()
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=5)
     async def presence_task(self):
-        """Updates the sidebar status: 'Watching In: 23.5C'"""
-        if state.indoor_temp:
-            activity = discord.Activity(
-                type=discord.ActivityType.watching, 
-                name=f"In: {state.indoor_temp}°{settings.unit}"
-            )
-            await self.change_presence(activity=activity)
+        """Updates the sidebar status with live temperature."""
+        # Wait until the bot is fully connected to avoid the 'NoneType' error
+        await self.wait_until_ready()
+        
+        if state.indoor_temp is not None:
+            try:
+                activity = discord.Activity(
+                    type=discord.ActivityType.watching, 
+                    name=f"In: {state.indoor_temp}°{settings.unit}"
+                )
+                await self.change_presence(activity=activity)
+            except Exception as e:
+                logger.error(f"Failed to update presence: {e}")
 
     async def on_ready(self):
-        logger.info(f"Bot logged in as {self.user} (ID: {self.user.id})")
+        logger.info(f"Discord Bot online as {self.user}")
 
-    # --- 1. CONVERSATIONAL LAYER (Natural Language) ---
+    # --- 1. CONVERSATIONAL LAYER (DM & Channel Chat) ---
     async def on_message(self, message):
         if message.author == self.user:
             return
 
-        # Check if it's a DM or a mention in #station-chat
+        # Handle DMs or messages in #station-chat
         is_dm = isinstance(message.channel, discord.DMChannel)
-        is_station_chat = message.channel.name == "station-chat"
+        # Check for channel name safely
+        is_station_chat = hasattr(message.channel, 'name') and message.channel.name == "station-chat"
 
         if is_dm or is_station_chat:
             content = message.content.lower()
             
-            # Simple Intent Matching (NLP)
             if "how" in content and "inside" in content:
                 await message.reply(f"It's currently **{state.indoor_temp}°{settings.unit}** inside with **{state.indoor_humid}%** humidity.")
             
             elif "outside" in content:
-                await message.reply(f"The outdoor temperature is **{state.outdoor_temp}°{settings.unit}**. It looks **{state.weather_text}** out there.")
+                await message.reply(f"The outdoor temperature is **{state.outdoor_temp}°{settings.unit}**. It is **{state.weather_text}**.")
             
             elif "aqi" in content or "air" in content:
-                await message.reply(f"The Air Quality Index is **{state.aqi_val}**, which is considered **{state.aqi_status}**.")
+                await message.reply(f"The Air Quality Index is **{state.aqi_val}** ({state.aqi_status}).")
             
-            elif "pi" in content or "health" in content:
-                stats = SystemService.get_stats()
-                await message.reply(f"I'm running smoothly! My CPU is at **{stats['cpu_temp']}**.")
+            elif "lcd" in content or "screen" in content:
+                await message.reply(f"The physical LCD currently says:\n```\n[{state.last_line1}]\n[{state.last_line2}]\n```")
 
         await self.process_commands(message)
 
-    # --- 2. SLASH COMMANDS (Professional UI) ---
-    @app_commands.command(name="status", description="Full weather breakdown in a rich card")
+    # --- 2. SLASH COMMANDS (/status) ---
+    @app_commands.command(name="status", description="Get a full weather report card")
     async def status(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="🌡️ Pi Weather Station", color=0x0288d1)
-        embed.add_field(name="🏠 Indoor", value=f"{state.indoor_temp}°{settings.unit}\nHumid: {state.indoor_humid}%", inline=True)
-        embed.add_field(name="🌍 Outdoor", value=f"{state.outdoor_temp}°{settings.unit}\nHumid: {state.outdoor_humid}%", inline=True)
+        embed = discord.Embed(title="🌡️ Pi Weather Station Status", color=0x0288d1)
+        embed.add_field(name="🏠 Indoor", value=f"{state.indoor_temp}°{settings.unit} / {state.indoor_humid}%", inline=True)
+        embed.add_field(name="🌍 Outdoor", value=f"{state.outdoor_temp}°{settings.unit} / {state.outdoor_humid}%", inline=True)
         embed.add_field(name="🍃 AQI", value=f"{state.aqi_val} ({state.aqi_status})", inline=False)
         embed.add_field(name="☀️ UV Index", value=f"Current: {state.uv_index} (Peak: {state.uv_max})", inline=True)
-        embed.set_footer(text=f"LCD Preview: {state.last_line1} | {state.last_line2}")
+        embed.set_footer(text=f"System Health: {SystemService.get_stats()['cpu_temp']}")
         await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="lcd", description="See exactly what the physical LCD shows")
-    async def lcd_preview(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"**Physical LCD Content:**\n```\n[{state.last_line1}]\n[{state.last_line2}]\n```")
