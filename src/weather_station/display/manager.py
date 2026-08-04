@@ -17,5 +17,7 @@ class DisplayManager:
                          self.widget_map.get(state.current_page, "widget_clock"))
                 line1, line2 = get_widget_text(widget)
             
+            # Save to state so Web UI can see it
+            state.last_line1, state.last_line2 = line1, line2
             self.lcd.write_lines(line1, line2)
             await asyncio.sleep(0.3)
