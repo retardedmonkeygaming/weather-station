@@ -16,4 +16,4 @@ DHT_PIN = 4        # DHT11 Data
 TOUCH_PIN = 27     # Touch Sensor Button
 
 # Actuators
-BUZZER_PIN = 2     # Active Buzzer
+BUZZER_PIN = 6     # Active Buzzer
