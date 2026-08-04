@@ -6,21 +6,7 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self):
-        # The main file for Logs and Settings
-        self.db_path = "/vxprxx/weather-station/src/weather_history.db"
-        # The file you copied earlier for Songs
-        self.lyrics_db_path = "/vxprxx/weather-station/src/lyrics.db"
-
-    async def get_all_songs(self):
-            """Connects to the lyrics.db to find your old songs."""
-            try:
-                async with aiosqlite.connect(self.lyrics_db_path) as db:
-                    db.row_factory = aiosqlite.Row
-                    async with db.execute("SELECT id, title, artist FROM songs ORDER BY title ASC") as cursor:
-                        rows = await cursor.fetchall()
-                        return [dict(r) for r in rows]
-            except Exception as e:
-                return []
+        self.db_path = settings.db_file
 
     async def initialize(self):
         """Initializes both Weather and LyricPulse tables."""
