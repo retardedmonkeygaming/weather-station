@@ -1,41 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Weather Station Dashboard</title>
+    <title>Weather Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-    <header>
-        <h1>Weather Station</h1>
+    <header style="background: #0288d1; color: white; padding: 15px; display: flex; justify-content: space-between;">
+        <h2 style="margin:0;">Weather Station</h2>
         <nav>
-            <a href="/">Dashboard</a>
-            <a href="/designer">UI Designer</a>
-            <a href="/settings">Settings</a>
+            <a href="/" style="color:white; font-weight:bold; margin-left:15px; text-decoration:none;">Dashboard</a>
+            <a href="/designer" style="color:white; font-weight:bold; margin-left:15px; text-decoration:none;">Designer</a>
+            <a href="/settings" style="color:white; font-weight:bold; margin-left:15px; text-decoration:none;">Settings</a>
         </nav>
     </header>
-    <div class="container">
-        <div class="card">
-            <h2>Current Conditions</h2>
-            <p>Indoor: <strong>{{ state.indoor_temp }}°C</strong> / {{ state.indoor_humid }}%</p>
-            <p>Outdoor: <strong>{{ state.outdoor_temp }}°C</strong> / {{ state.outdoor_humid }}%</p>
-            <p>Status: <span class="{{ 'status-online' if not state.dht_error else 'status-offline' }}">
-                {{ 'DHT11 ONLINE' if not state.dht_error else 'DHT11 ERROR' }}</span></p>
-        </div>
-        <div class="card">
-            <h2>Live LCD Preview</h2>
-            <div class="lcd-preview" id="lcd">
-                Loading Preview...
+
+    <div style="padding: 20px; max-width: 1200px; margin: auto;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <!-- Live LCD Card -->
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h3 style="color:#0288d1; margin-top:0;">Live LCD Display</h3>
+                <div id="lcd-screen" style="background: #1b2a1a; color: #33ff33; font-family: 'Courier New', monospace; padding: 20px; border-radius: 8px; border: 6px solid #2e4d2a; font-size: 24px; white-space: pre; text-align: center;">
+                    Loading...
+                </div>
+            </div>
+
+            <!-- Stats Card -->
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h3 style="color:#0288d1; margin-top:0;">Quick Stats</h3>
+                <p>Indoor: <strong id="in-temp">--</strong></p>
+                <p>Outdoor: <strong id="out-temp">--</strong></p>
             </div>
         </div>
     </div>
+
     <script>
-        // Simple script to refresh data every second
-        async function update() {
-            const res = await fetch('/api/data');
-            const data = await res.json();
-            // Update DOM elements...
+        async function refresh() {
+            const r = await fetch('/api/data');
+            const d = await r.json();
+            document.getElementById('lcd-screen').innerText = d.lcd_line1 + "\n" + d.lcd_line2;
+            document.getElementById('in-temp').innerText = d.indoor_temp;
+            document.getElementById('out-temp').innerText = d.outdoor_temp;
         }
-        setInterval(update, 1000);
+        setInterval(refresh, 1000);
     </script>
 </body>
 </html>

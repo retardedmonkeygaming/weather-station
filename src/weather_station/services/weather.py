@@ -5,11 +5,31 @@ from weather_station.core.state import state
 
 logger = logging.getLogger(__name__)
 
-
 class WeatherService:
     def __init__(self):
         self.weather_url = "https://api.open-meteo.com/v1/forecast"
         self.aqi_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+
+    def _get_weather_info(self, code):
+        """Maps Open-Meteo codes to LCD icons and text."""
+        if code in [0, 1]: return "\x05", "Clear"
+        if code in [2, 3]: return "\x04", "Cloudy"
+        if code in [45, 48]: return "\x04", "Foggy"
+        if code in [51, 53, 55, 61, 63, 65]: return "\x04", "Rain"
+        if code in [71, 73, 75]: return "\x04", "Snow"
+        if code in [95, 96, 99]: return "\x04", "Storm"
+        return "\x05", "Clear"
+
+    def _parse_aqi_status(self, aqi):
+        """Maps US AQI values to status text."""
+        try:
+            val = int(aqi)
+            if val <= 50: return "Good"
+            if val <= 100: return "Moderate"
+            if val <= 150: return "Sensitiv"
+            if val <= 200: return "Unhealth"
+            return "Hazard"
+        except: return "N/A"
 
     async def fetch_all(self):
         """Fetches both Weather and AQI data in parallel."""
@@ -34,7 +54,12 @@ class WeatherService:
                         data = await resp.json()
                         state.outdoor_temp = f"{data['current']['temperature_2m']:.1f}"
                         state.outdoor_humid = f"{data['current']['relative_humidity_2m']}"
-                        # ... other data points mapping to state ...
+                        state.outdoor_max = f"{data['daily']['temperature_2m_max'][0]:.1f}"
+                        state.outdoor_min = f"{data['daily']['temperature_2m_min'][0]:.1f}"
+                        
+                        icon, text = self._get_weather_info(data['current']['weather_code'])
+                        state.weather_icon = icon
+                        state.weather_text = text
                         state.wifi_error = False
                     else:
                         state.wifi_error = True
@@ -44,7 +69,9 @@ class WeatherService:
                     if resp.status == 200:
                         aqi_data = await resp.json()
                         state.aqi_val = str(int(aqi_data['current']['us_aqi']))
-                        # ... mapping AQI status ...
+                        state.aqi_status = self._parse_aqi_status(state.aqi_val)
+                        state.pm2_5 = str(int(aqi_data['current']['pm2_5']))
+                        state.pm10 = str(int(aqi_data['current']['pm10']))
             
             except Exception as e:
                 logger.error(f"Failed to fetch outdoor weather: {e}")
