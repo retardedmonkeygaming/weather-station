@@ -7,10 +7,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # --- 1. ULTIMATE ENV LOAD (MUST BE TOP) ---
-# This looks for .env in /vxprxx/weather-station/ regardless of where you start
-current_dir = Path(__file__).resolve().parent # weather_station/
-src_dir = current_dir.parent                  # src/
-root_dir = src_dir.parent                     # weather-station/
+current_dir = Path(__file__).resolve().parent
+src_dir = current_dir.parent
+root_dir = src_dir.parent
 env_path = root_dir / ".env"
 
 if env_path.exists():
@@ -31,29 +30,35 @@ from weather_station.input.processor import InputProcessor
 from weather_station.web.app import app
 from weather_station.services.discord_bot import WeatherBot
 
-# --- 3. LOGGING SETUP ---
+# Initialize logging
 setup_logging()
 logger = logging.getLogger("Main")
 
-# --- 4. BACKGROUND WORKER DEFINITIONS ---
+# --- 3. BACKGROUND WORKER DEFINITIONS ---
 
 async def weather_fetcher(service):
     """Periodically fetches data from Open-Meteo."""
     while True:
-        await service.fetch_all()
+        try:
+            await service.fetch_all()
+        except Exception as e:
+            logger.error(f"Weather fetcher encountered an error: {e}")
         await asyncio.sleep(settings.api_rate * 60)
 
 async def dht_reader(sensors):
     """Periodically reads the local DHT11 sensor."""
     while True:
-        temp, humid = sensors.read_dht()
-        if temp is not None:
-            state.indoor_temp_raw = temp
-            state.indoor_temp = temp + settings.dht_temp_offset
-            state.indoor_humid = humid
-            state.dht_error = False
-        else:
-            state.dht_error = True
+        try:
+            temp, humid = sensors.read_dht()
+            if temp is not None:
+                state.indoor_temp_raw = temp
+                state.indoor_temp = temp + settings.dht_temp_offset
+                state.indoor_humid = humid
+                state.dht_error = False
+            else:
+                state.dht_error = True
+        except Exception as e:
+            logger.error(f"DHT reader encountered an error: {e}")
         await asyncio.sleep(3)
 
 async def run_diagnostics(lcd, sensors, buzzer, weather):
@@ -91,64 +96,56 @@ async def run_web_server():
     server = uvicorn.Server(config)
     await server.serve()
 
-# --- 5. THE SINGLE MAIN FUNCTION ---
+# --- 4. THE MAIN ENTRY POINT ---
 
 async def main():
     try:
-        # Initialize Database
+        # A. Persistence
         db = DatabaseManager()
         await db.initialize()
         
-        # Initialize Hardware
+        # B. Hardware
         lcd = WeatherLCD()
         sensors = WeatherSensors()
         buzzer = WeatherBuzzer()
         
-        input_proc = InputProcessor(sensors, buzzer, db) # Pass 'db' here
-
-        tasks = [
-            weather_fetcher(weather_service),
-            dht_reader(sensors),
-            DisplayManager(lcd).run_loop(),
-            input_proc.run_loop(), # Use the initialized object
-            run_web_server()
-]
-
-        # Initialize Services
+        # C. Services
         weather_service = WeatherService()
         bot = WeatherBot() 
         
-        # Run Diagnostics (Loading Screen)
+        # D. Managers (Pass shared resources)
+        input_proc = InputProcessor(sensors, buzzer, db)
+        display_proc = DisplayManager(lcd)
+        
+        # E. Run Boot Sequence
         await run_diagnostics(lcd, sensors, buzzer, weather_service)
 
         logger.info("System Ready. Starting background tasks.")
 
-        # Prepare the core tasks
+        # F. Assemble Task List
         tasks = [
             weather_fetcher(weather_service),
             dht_reader(sensors),
-            DisplayManager(lcd).run_loop(),
-            InputProcessor(sensors, buzzer).run_loop(),
+            display_proc.run_loop(),
+            input_proc.run_loop(),
             run_web_server()
         ]
 
-        # Check for token in .env (via os.getenv)
+        # G. Optional Discord Bot Task
         token = os.getenv("WEATHER_DISCORD_TOKEN")
-        
         if token:
             logger.info("Token detected. Starting Discord Bot...")
             tasks.append(bot.start(token))
         else:
-            logger.warning("Discord Token missing in .env. Bot will not start.")
+            logger.warning("Discord Token missing. Bot will not start.")
 
-        # Run everything in parallel
+        # H. Run Everything
         await asyncio.gather(*tasks)
 
     except Exception as e:
         print(f"CRITICAL STARTUP ERROR: {e}")
         logger.critical(f"Startup failed: {e}")
 
-# --- 6. ENTRY POINT ---
 if __name__ == "__main__":
     try:
         asyncio.run(main())
