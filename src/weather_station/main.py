@@ -104,16 +104,6 @@ async def main():
         sensors = WeatherSensors()
         buzzer = WeatherBuzzer()
         
-        input_proc = InputProcessor(sensors, buzzer, db) # Pass 'db' here
-
-        tasks = [
-            weather_fetcher(weather_service),
-            dht_reader(sensors),
-            DisplayManager(lcd).run_loop(),
-            input_proc.run_loop(), # Use the initialized object
-            run_web_server()
-]
-
         # Initialize Services
         weather_service = WeatherService()
         bot = WeatherBot() 
