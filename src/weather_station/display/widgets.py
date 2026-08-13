@@ -40,11 +40,21 @@ def get_widget_text(widget_type: str) -> tuple:
     return "Weather Station", "v3.0 Ready"
 
 def get_settings_text() -> tuple:
+    """Display settings menu with all 10 options properly formatted for 16x2 LCD."""
     idx = state.settings_index
-    if idx == 1: return "1. Temp Unit", f"> Mode: [{settings.unit}]"
-    if idx == 2: return "2. Buzzer Mode", f"> Sound: [{settings.buzzer_mode}]"
-    if idx == 3: return "3. Screen Power", "> Power: [ON]"
-    if idx == 4: return "4. Auto Scroll", "> Rate: [OFF]"
-    if idx == 5: return "5. Daily Alarm", "> State: [OFF]"
-    if idx == 10: return "10. Factory Reset", "> HOLD 3S RESET"
-    return f"Setting {idx}", "View on WebUI"
+    
+    # Settings menu - each option fits on 16x2 LCD
+    settings_menu = {
+        1: ("1. Temp Unit", f"> [{settings.unit}] C/F"),
+        2: ("2. Buzzer Mode", f"> [{settings.buzzer_mode}]"),
+        3: ("3. Screen Power", "> [ON] Always"),
+        4: ("4. Auto Scroll", "> [OFF] Disabled"),
+        5: ("5. Daily Alarm", "> [OFF] Disabled"),
+        6: ("6. Alert Temp Hi", "> [35C] Threshold"),
+        7: ("7. Alert Temp Lo", "> [10C] Threshold"),
+        8: ("8. Sensor Offset", "> [0.0C] Calib"),
+        9: ("9. Quiet Hours", "> [22-07] Hrs"),
+        10: ("10. Factory Reset", "> HOLD 3S RESET")
+    }
+    
+    return settings_menu.get(idx, (f"Setting {idx}", "View on WebUI"))
