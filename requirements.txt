@@ -1,13 +1,27 @@
-adafruit-circuitpython-charlcd
-adafruit-circuitpython-dht
-fastapi
-uvicorn[standard]
-aiosqlite
-aiohttp
-gpiozero
-requests
-pydantic
-pydantic-settings
-jinja2
-python-multipart
-discord.py
+# Core Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+websockets==12.0
+jinja2==3.1.3
+python-multipart==0.0.6
+
+# Hardware & GPIO (Raspberry Pi)
+gpiozero==2.0
+RPi.GPIO==0.7.1
+spidev==3.6
+smbus2==0.5.0
+adafruit-circuitpython-ssd1306==2.11.0
+Pillow==10.2.0
+
+# External APIs & Networking
+aiohttp==3.9.1
+requests==2.31.0
+python-dotenv==1.0.0
+
+# Discord Bot
+discord.py==2.3.2
+
+# Utilities
+pydantic==2.5.3
+pydantic-settings==2.1.0
+asyncio==3.4.3
