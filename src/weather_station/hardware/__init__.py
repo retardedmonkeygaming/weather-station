@@ -1,8 +1,5 @@
-"""
-Hardware module: Abstraction layer for physical components
-Supports real hardware and mock implementations for PC development
-"""
+from .lcd import WeatherLCD
+from .sensors import WeatherSensors
+from .buzzer import WeatherBuzzer
 
-from .interfaces import HardwareInterface, MockHardware, RealHardware, PIN_MAPPING
-
-__all__ = ['HardwareInterface', 'MockHardware', 'RealHardware', 'PIN_MAPPING']
+__all__ = ["WeatherLCD", "WeatherSensors", "WeatherBuzzer"]
