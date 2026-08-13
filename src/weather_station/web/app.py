@@ -285,6 +285,7 @@ async def save_page(request: Request):
 
 @app.get("/settings", response_class=HTMLResponse)
 async def web_settings():
+    """Complete settings page with all configuration groups."""
     return f"""
 <!DOCTYPE html>
 <html lang="en" data-theme="auto">
@@ -296,45 +297,227 @@ async def web_settings():
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-brand"><span class="nav-brand-icon">🌤️</span><span>SkyCast Settings</span></div>
-        <div class="nav-links"><a href="/" class="nav-link">Back to Dashboard</a></div>
+        <div class="nav-brand"><span class="nav-brand-icon">⚙️</span><span>SkyCast Settings</span></div>
+        <div class="nav-links"><a href="/" class="nav-link">Dashboard</a></div>
     </nav>
     
-    <div class="card" style="max-width: 600px;">
-        <h2>Device Preferences</h2>
-        <form action="/update-settings" method="post">
-            <div class="form-group">
-                <label class="form-label">Temperature Unit</label>
-                <select name="unit" class="form-control">
-                    <option value="C" {"selected" if settings.unit=="C" else ""}>Celsius</option>
-                    <option value="F" {"selected" if settings.unit=="F" else ""}>Fahrenheit</option>
-                </select>
+    <div class="container" style="max-width: 800px; margin: 0 auto; padding: 20px;">
+        <!-- General Settings -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">🌡️ General Settings</h3>
             </div>
-            <div class="form-group">
-                <label class="form-label">Buzzer Mode</label>
-                <select name="buzzer" class="form-control">
-                    <option value="ALL" {"selected" if settings.buzzer_mode=="ALL" else ""}>All Sounds</option>
-                    <option value="MUTE" {"selected" if settings.buzzer_mode=="MUTE" else ""}>Mute</option>
-                </select>
+            <form id="general-form" onsubmit="saveSettings(event, 'general')">
+                <div class="form-group">
+                    <label class="form-label">Temperature Unit</label>
+                    <select name="unit" class="form-control" id="unit">
+                        <option value="C" {"selected" if settings.unit=="C" else ""}>Celsius (°C)</option>
+                        <option value="F" {"selected" if settings.unit=="F" else ""}>Fahrenheit (°F)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Buzzer Mode</label>
+                    <select name="buzzer_mode" class="form-control" id="buzzer_mode">
+                        <option value="ALL" {"selected" if settings.buzzer_mode=="ALL" else ""}>All Sounds</option>
+                        <option value="ALERTS" {"selected" if settings.buzzer_mode=="ALERTS" else ""}>Alerts Only</option>
+                        <option value="MUTE" {"selected" if settings.buzzer_mode=="MUTE" else ""}>Mute</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save General Settings</button>
+            </form>
+        </div>
+
+        <!-- Data Collection -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">📊 Data Collection</h3>
             </div>
-            <div class="form-group">
-                <label class="form-label">API Rate (minutes)</label>
-                <input type="number" name="api_rate" class="form-control" value="{settings.api_rate}">
+            <form id="data-form" onsubmit="saveSettings(event, 'data')">
+                <div class="form-group">
+                    <label class="form-label">API Fetch Interval (minutes)</label>
+                    <input type="number" name="api_rate" class="form-control" id="api_rate" value="{settings.api_rate}" min="1" max="60">
+                    <p class="form-hint">How often to fetch weather data from API</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Log Interval (minutes)</label>
+                    <input type="number" name="log_rate" class="form-control" id="log_rate" value="{getattr(settings, 'log_rate', 15)}" min="1" max="120">
+                    <p class="form-hint">How often to save data to database</p>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Data Settings</button>
+            </form>
+        </div>
+
+        <!-- System Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">🔧 System Actions</h3>
             </div>
-            <button type="submit" class="btn btn-primary">Save Settings</button>
-        </form>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="exportConfig()" class="btn btn-outline">📤 Export Config</button>
+                <button onclick="document.getElementById('import-file').click()" class="btn btn-outline">📥 Import Config</button>
+                <input type="file" id="import-file" style="display:none" accept=".json" onchange="importConfig(this)">
+                <button onclick="factoryReset()" class="btn btn-danger">⚠️ Factory Reset</button>
+            </div>
+        </div>
     </div>
+
+    <div id="toast" class="toast" style="display:none;"></div>
+
+    <script>
+        function showToast(message, success=true) {{
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = success ? 'var(--success-green)' : 'var(--error-red)';
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 3000);
+        }}
+
+        async function saveSettings(event, category) {{
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const params = Object.fromEntries(formData);
+            
+            try {{
+                const response = await fetch('/api/settings/' + category, {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify(params)
+                }});
+                
+                if (response.ok) {{
+                    showToast('✅ Settings saved successfully!');
+                }} else {{
+                    showToast('❌ Failed to save settings', false);
+                }}
+            }} catch (error) {{
+                showToast('❌ Error: ' + error.message, false);
+            }}
+        }}
+
+        async function exportConfig() {{
+            try {{
+                const response = await fetch('/api/config/export');
+                const data = await response.json();
+                const blob = new Blob([JSON.stringify(data, null, 2)], {{type: 'application/json'}});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'skycast-config-' + new Date().toISOString().split('T')[0] + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('✅ Config exported!');
+            }} catch (error) {{
+                showToast('❌ Export failed: ' + error.message, false);
+            }}
+        }}
+
+        async function importConfig(input) {{
+            const file = input.files[0];
+            if (!file) return;
+            
+            try {{
+                const text = await file.text();
+                const config = JSON.parse(text);
+                
+                const response = await fetch('/api/config/import', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify(config)
+                }});
+                
+                if (response.ok) {{
+                    showToast('✅ Config imported! Refreshing...');
+                    setTimeout(() => location.reload(), 1500);
+                }}
+            }} catch (error) {{
+                showToast('❌ Import failed: ' + error.message, false);
+            }}
+        }}
+
+        async function factoryReset() {{
+            if (!confirm('⚠️ WARNING: This will reset ALL settings to defaults. Continue?')) return;
+            
+            try {{
+                const response = await fetch('/api/system/factory-reset', {{method: 'POST'}});
+                if (response.ok) {{
+                    showToast('✅ Factory reset complete!');
+                    setTimeout(() => location.reload(), 1500);
+                }}
+            }} catch (error) {{
+                showToast('❌ Reset failed: ' + error.message, false);
+            }}
+        }}
+    </script>
+    
+    <style>
+        .toast {{
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }}
+        @keyframes slideIn {{
+            from {{ transform: translateX(100%); opacity: 0; }}
+            to {{ transform: translateX(0); opacity: 1; }}
+        }}
+    </style>
 </body>
 </html>
 """
 
-@app.post("/update-settings")
-async def update_settings(unit: str = Form(...), buzzer: str = Form(...), api_rate: int = Form(...)):
-    settings.unit, settings.buzzer_mode, settings.api_rate = unit, buzzer, api_rate
-    await db.save_setting("unit", unit)
-    await db.save_setting("buzzer", buzzer)
-    await db.save_setting("api_rate", str(api_rate))
-    return RedirectResponse(url="/settings", status_code=303)
+# API endpoints for settings management
+@app.post("/api/settings/general")
+async def save_general_settings(request: Request):
+    """Save general settings (unit, buzzer mode)."""
+    data = await request.json()
+    if 'unit' in data:
+        settings.unit = data['unit']
+        await db.save_setting("unit", data['unit'], "web")
+    if 'buzzer_mode' in data:
+        settings.buzzer_mode = data['buzzer_mode']
+        await db.save_setting("buzzer_mode", data['buzzer_mode'], "web")
+    return {"status": "success"}
+
+@app.post("/api/settings/data")
+async def save_data_settings(request: Request):
+    """Save data collection settings."""
+    data = await request.json()
+    if 'api_rate' in data:
+        settings.api_rate = int(data['api_rate'])
+        await db.save_setting("api_rate", str(data['api_rate']), "web")
+    if 'log_rate' in data:
+        await db.save_setting("log_rate", str(data['log_rate']), "web")
+    return {"status": "success"}
+
+@app.get("/api/config/export")
+async def export_config():
+    """Export all configuration as JSON."""
+    config = await db.export_config()
+    return config
+
+@app.post("/api/config/import")
+async def import_config(request: Request):
+    """Import configuration from JSON."""
+    data = await request.json()
+    await db.import_config(data)
+    return {"status": "success"}
+
+@app.post("/api/system/factory-reset")
+async def factory_reset():
+    """Perform factory reset."""
+    # Reset settings to defaults
+    settings.unit = "C"
+    settings.buzzer_mode = "ALL"
+    # Clear database settings
+    await db.save_setting("unit", "C", "system")
+    await db.save_setting("buzzer_mode", "ALL", "system")
+    return {"status": "success"}
 
 @app.get("/designer", response_class=HTMLResponse)
 async def ui_designer():
