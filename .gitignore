@@ -1,9 +1,36 @@
+```
+# Python
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
 .venv/
 venv/
-*.db
-*.db-journal
+env/
 .env
-.DS_Store
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Editor/IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Build/dist
+dist/
+build/
+.coverage
+coverage/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+```
