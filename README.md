@@ -1,288 +1,228 @@
-# 🌤️ SkyCast Weather Station
+# SkyCast Weather Station v3.0.0
 
-> **Professional-grade environmental monitoring for Raspberry Pi**  
-> *Your window to the weather — indoors and out*
+**Your Environment, Understood**
 
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/yourusername/weather-station)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
-[![Hardware](https://img.shields.io/badge/hardware-Raspberry_Pi-red.svg)](https://raspberrypi.org)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
----
+Professional environmental monitoring system with LCD display, web dashboard, and Discord integration. Built for Raspberry Pi with full mock hardware support for PC development.
 
-## 📖 Table of Contents
+![SkyCast Weather Station](https://via.placeholder.com/800x400/0288d1/ffffff?text=SkyCast+Weather+Station+v3.0.0)
 
-- [Overview](#overview)
-- [Features](#features)
-- [Hardware Requirements](#hardware-requirements)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Web Dashboard](#web-dashboard)
-- [Discord Bot](#discord-bot)
-- [LCD Display](#lcd-display)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+## Features
 
----
+### 🖥️ LCD Display (16x2)
+- **Page 0**: Clock + Date with animated colon and alarm indicator
+- **Page 1**: Indoor Climate (`In:24.5C H:45%` + `Comfort! :)`)
+- **Page 2**: Outdoor Weather (temperature + feels like)
+- **Page 3**: Air Quality (`OK`, `Mod`, `Sens`, `Unhl`, `VUnh`, `Hazd`)
+- **Page 4**: System Info (uptime, API fetch age, disk space)
+- **Page 5**: Settings Menu (10 configurable items)
 
-## 🎯 Overview
+### 👆 Professional Touch Input
+- Single tap → Next page
+- Double tap → Previous page
+- Triple tap → Enter/exit settings
+- Short hold (0.8s) → Adjust setting value
+- Medium hold (3s) → Factory reset
+- Long hold (5s) → Reboot
+- Extra long hold (10s) → Shutdown
 
-SkyCast is a **complete, production-ready weather station** built for Raspberry Pi. It combines local sensor data (DHT11) with outdoor forecasts (Open-Meteo API) and air quality metrics, presenting them across three synchronized surfaces:
+### 🌐 Web Dashboard (Coming Soon)
+- Live WebSocket updates
+- Simulated LCD mirror
+- Metric tiles with severity colors
+- Settings management
+- Historical charts
+- Dark mode support
 
-1. **Physical LCD** — 16x2 character display with custom widgets
-2. **Web Dashboard** — Modern, responsive interface with live updates
-3. **Discord Bot** — Chat-based queries and proactive alerts
+### 💬 Discord Bot (Coming Soon)
+- First-join setup wizard
+- Per-server and per-user configuration
+- Natural language queries
+- Proactive alerts and briefings
+- Branded embeds with project colors
 
-Designed with a **unified visual identity** and professional UX patterns throughout, SkyCast feels polished, trustworthy, and pleasant to use every day.
+## Quick Start
 
----
-
-## ✨ Features
-
-### 🌡️ Multi-Source Weather Data
-- **Indoor**: Temperature & humidity via DHT11 sensor
-- **Outdoor**: Forecast from Open-Meteo API (no key required)
-- **Air Quality**: US AQI, PM2.5, PM10 from Open-Meteo Air Quality API
-- **UV Index**: Current and daily maximum
-
-### 🖥️ Triple-Surface Display
-| Surface | Description |
-|---------|-------------|
-| **LCD 1602** | 16x2 character display with 10+ widget types, gesture navigation, and settings menu |
-| **Web UI** | Responsive dashboard with metric cards, live LCD mirror, history tables, and screen designer |
-| **Discord** | Slash commands (`/status`, `/now`), natural-language DMs, rich embeds, and alert notifications |
-
-### 🔔 Smart Alerts & Feedback
-- **Dual Buzzer System**: Active buzzer (GPIO 6) for beeps, passive buzzer (GPIO 16) for tones/melodies
-- **Configurable Modes**: ALL, ERR (errors only), MUTE
-- **Touch Input**: Single tap (next page), long press (reboot/shutdown), hold (settings)
-
-### 🎨 Professional Design System
-- **Primary Color**: `#0288d1` (Material Blue)
-- **Status Colors**: Green (success), Amber (warning), Red (error)
-- **Dark Mode**: Automatic or manual toggle
-- **Consistent Typography**: Segoe UI / system fonts with proper scale
-- **Micro-interactions**: Hover lifts, smooth transitions, skeleton loaders
-
-### 🛠️ Developer Experience
-- **Modular Architecture**: Clean separation of concerns (hardware, services, web, display)
-- **Type Hints**: Full Python typing for IDE support
-- **Async First**: Built on `asyncio` for concurrent operations
-- **Environment Config**: `.env` file or `WEATHER_` prefixed env vars
-- **SQLite History**: Persistent logging with configurable intervals
-
----
-
-## 🔧 Hardware Requirements
-
-| Component | Model | GPIO Pin | Notes |
-|-----------|-------|----------|-------|
-| **Raspberry Pi** | Any (3B+/4/Zero recommended) | — | Requires GPIO header |
-| **LCD 1602A** | HD44780 (I2C or parallel) | RS=22, EN=17, D4=25, D5=24, D6=23, D7=18 | I2C backpack simplifies wiring |
-| **DHT11** | Temperature/Humidity Sensor | GPIO 4 | Add 10k pull-up resistor |
-| **Active Buzzer** | 3-5V DC Buzzer | GPIO 6 | For simple beeps |
-| **Passive Buzzer** | PWM-driven Speaker | GPIO 16 | For tones/melodies |
-| **Touch Button** | Momentary Switch | GPIO 27 | For navigation |
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone & Install
+### Installation on Raspberry Pi
 
 ```bash
-git clone https://github.com/yourusername/weather-station.git
+# One-line installer (coming soon)
+curl -sSL https://raw.githubusercontent.com/skycast/weather-station/main/scripts/install.sh | sudo bash
+
+# Manual installation
+git clone https://github.com/skycast/weather-station.git
 cd weather-station
-pip install -r requirements.txt
+pip install -e .
+skycast
 ```
 
-### 2. Configure
+### Running Without Hardware (PC Development)
+
+```bash
+# Install with mock profile
+pip install -e ".[dev]"
+export SKYCAST_PROFILE=mock
+python -m src.weather_station.main
+```
+
+## Configuration
 
 Create a `.env` file in the project root:
 
 ```env
-# Location (Kuwait City default)
-WEATHER_LATITUDE=29.325390
-WEATHER_LONGITUDE=48.019562
+# Application
+SKYCAST_PROFILE=production
 
-# Units
-WEATHER_UNIT=C
-WEATHER_LANGUAGE=en
+# Location
+LOCATION_LATITUDE=40.7128
+LOCATION_LONGITUDE=-74.0060
+LOCATION_TIMEZONE=America/New_York
 
-# Hardware
-WEATHER_BUZZER_MODE=ALL  # ALL, ERR, MUTE
+# Sensors
+SENSOR_MOCK_HARDWARE=false
+SENSOR_I2C_BUS=1
+SENSOR_LCD_ADDRESS=0x27
+
+# Alerts
+ALERT_TEMP_HIGH=30.0
+ALERT_TEMP_LOW=5.0
+ALERT_BUZZER_MODE=ALERTS
+ALERT_QUIET_HOURS_START=22
+ALERT_QUIET_HOURS_END=7
 
 # Discord (optional)
-WEATHER_DISCORD_TOKEN=your_bot_token_here
-WEATHER_DISCORD_CHANNEL_ID=1234567890
-
-# Timing (minutes)
-WEATHER_API_RATE=10
-WEATHER_LOG_RATE=15
+DISCORD_TOKEN=your_bot_token_here
+DISCORD_ENABLED=false
 
 # Web Server
-WEATHER_WEB_HOST=0.0.0.0
-WEATHER_WEB_PORT=8000
-
-# UI
-WEATHER_THEME=auto  # light, dark, auto
+WEB_HOST=0.0.0.0
+WEB_PORT=8000
 ```
 
-### 3. Run
+## Project Structure
+
+```
+src/weather_station/
+├── __init__.py          # Package metadata, branding
+├── main.py              # Application factory
+├── core/
+│   ├── config.py        # Pydantic settings
+│   ├── state.py         # Central AppState
+│   └── events.py        # EventBus for decoupled communication
+├── hardware/
+│   └── interfaces.py    # HAL with MockHardware + RealHardware
+├── persistence/
+│   ├── models.py        # SQLAlchemy models (7 tables)
+│   └── database.py      # DatabaseManager with repository pattern
+├── input/
+│   └── processor.py     # Touch gesture recognition
+├── display/
+│   ├── manager.py       # DisplayManager
+│   └── widgets.py       # 6 LCD widgets
+├── services/
+│   ├── weather.py       # WeatherService with retry logic
+│   └── system.py        # SystemService (alerts, shutdown)
+└── web/                 # (Coming soon)
+    └── discord/         # (Coming soon)
+```
+
+## Architecture
+
+SkyCast uses a clean modular architecture:
+
+1. **AppState**: Single source of truth for all system state
+2. **EventBus**: Decoupled pub/sub communication between components
+3. **Hardware Abstraction**: Interfaces with mock implementation for PC development
+4. **Repository Pattern**: Thin data-access layer over SQLAlchemy
+5. **Application Factory**: Clean initialization and lifecycle management
+
+## Settings Menu
+
+The 16x2 LCD displays these 10 settings:
+
+| # | Setting | Values |
+|---|---------|--------|
+| 0 | Temp Unit | C / F |
+| 1 | Buzzer Mode | ALL / ALERTS / MUTE |
+| 2 | Screen Power | ON / OFF |
+| 3 | Auto Scroll | ON / OFF |
+| 4 | Daily Alarm | OFF / ON |
+| 5 | Alert Temp Hi | -10 to 50°C |
+| 6 | Alert Temp Lo | -10 to 50°C |
+| 7 | Sensor Offset | -5.0 to +5.0 |
+| 8 | Quiet Hours | 22-7 (configurable) |
+| 9 | Factory Reset | NO / YES |
+
+## Database Schema
+
+7 tables with provenance tracking:
+
+- `settings` - All configuration with last-changed-by metadata
+- `sensor_logs` - Historical sensor readings (auto-retention)
+- `alert_logs` - Alert history for auditing
+- `discord_server_configs` - Per-server Discord settings
+- `discord_user_configs` - Per-user preferences
+- `update_checks` - GitHub update check results
+- `system_events` - Audit log for system events
+
+## Roadmap
+
+### Phase 1: Core Foundation ✅
+- [x] Modular package structure
+- [x] AppState + EventBus
+- [x] Hardware abstraction layer
+- [x] Database with repository pattern
+- [x] Professional touch input
+- [x] LCD widgets (6 pages)
+- [x] Weather + System services
+
+### Phase 2: Web Dashboard (Next)
+- [ ] FastAPI with Jinja2 templates
+- [ ] WebSocket live updates
+- [ ] Settings UI with instant sync
+- [ ] Historical charts
+- [ ] Dark mode
+
+### Phase 3: Discord Integration
+- [ ] Setup wizard on server join
+- [ ] Per-server/per-user configs
+- [ ] Natural language queries
+- [ ] Proactive alerts
+
+### Phase 4: Polish & Distribution
+- [ ] Update checker (GitHub Releases)
+- [ ] Health endpoints
+- [ ] Raspberry Pi installer script
+- [ ] Docker Compose (optional)
+- [ ] Documentation site
+
+## Development
 
 ```bash
-python -m src.weather_station.main
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Code formatting
+black src/
+
+# Type checking
+mypy src/
 ```
 
----
+## License
 
-## ⚙️ Configuration
+MIT License - see [LICENSE](LICENSE) for details.
 
-### Settings Reference
+## Contributing
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WEATHER_LATITUDE` | `29.325390` | Latitude for API queries |
-| `WEATHER_LONGITUDE` | `48.019562` | Longitude for API queries |
-| `WEATHER_UNIT` | `C` | Temperature unit: `C` or `F` |
-| `WEATHER_BUZZER_MODE` | `ALL` | Sound mode: `ALL`, `ERR`, `MUTE` |
-| `WEATHER_API_RATE` | `10` | Minutes between API fetches |
-| `WEATHER_LOG_RATE` | `15` | Minutes between DB logs |
-| `WEATHER_IDLE_TIMEOUT` | `300` | Seconds before LCD dims |
-| `WEATHER_THEME` | `auto` | UI theme: `light`, `dark`, `auto` |
-| `WEATHER_DISCORD_TOKEN` | — | Discord bot token |
+Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ---
 
-## 🌐 Web Dashboard
-
-Access at `http://<pi-ip>:8000`
-
-### Pages
-
-| Route | Description |
-|-------|-------------|
-| `/` | Live dashboard with metric cards and recent history |
-| `/designer` | Drag-and-drop LCD screen designer |
-| `/settings` | System configuration and calibration |
-| `/logs` | Full historical data table |
-| `/health` | System health check (JSON) |
-
----
-
-## 🤖 Discord Bot
-
-### Commands
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/status` | Full weather report embed | `/status` |
-| `/now` | Quick current conditions | `/now` |
-| `/aqi` | Air quality details | `/aqi` |
-| `/help` | Interactive help menu | `/help` |
-| `/health` | Bot latency & subsystem status | `/health` |
-
-### Natural Language (DMs)
-
-Bot responds conversationally in DMs or `#station-chat`:
-
-```
-You: how's it looking inside?
-Bot: It's currently **23.4°C** inside with **45%** humidity.
-
-You: what about outside?
-Bot: The outdoor temperature is **28.1°C**. It is **Clear**.
-
-You: aqi?
-Bot: The Air Quality Index is **42** (Good).
-```
-
----
-
-## 📟 LCD Display
-
-### Widget Types
-
-| Widget | Line 1 | Line 2 |
-|--------|--------|--------|
-| Indoor Climate | `In:23.4C→ H:45%` | `State: Comfort` |
-| Outdoor Weather | `Out:28.1C 40%` | `Fcst: Clear` |
-| Moon Phase | `Moon: Full` | `Illum: 98%` |
-| Air Quality | `AQI:42 (Good)` | `P2.5:12 P10:20` |
-| Pi System | `CPU:45.2C 12%` | `RAM:34%` |
-| Clock | `Time: 14:30:00` | `Date: 15-01-24` |
-
-### Navigation
-
-| Action | Result |
-|--------|--------|
-| **Tap** (< 0.6s) | Next page / next setting |
-| **Hold** (3s) | Enter settings |
-| **Hold** (5s) | Reboot system |
-| **Hold** (10s) | Shutdown Pi |
-
----
-
-## 📡 API Reference
-
-### GET /api/data
-
-Live sensor and LCD state.
-
-```json
-{
-  "lcd_line1": "In:23.4C-> H:45%",
-  "indoor_temp": "23.4C",
-  "outdoor_temp": "28.1C",
-  "aqi_val": "42"
-}
-```
-
-### GET /health
-
-System health summary.
-
-```json
-{
-  "status": "ok",
-  "uptime_seconds": 86400,
-  "version": "3.0.0"
-}
-```
-
----
-
-## 🐛 Troubleshooting
-
-### DHT11 Reading None
-- Check wiring (GPIO 4, 5V, GND)
-- Add 10k pull-up resistor
-
-### LCD Shows Garbage
-- Verify pin mapping in `pins.py`
-- Adjust contrast potentiometer
-
-### Discord Bot Not Responding
-- Confirm token in `.env`
-- Enable Message Content Intent
-
----
-
-## 🤝 Contributing
-
-1. Fork the repo
-2. Create feature branch
-3. Commit changes
-4. Push and open PR
-
----
-
-## 📄 License
-
-MIT License — see LICENSE for details.
-
----
-
-**Built with ❤️ by the Weather Station Team**
+Built with ❤️ by the SkyCast Team
