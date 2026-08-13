@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
+from datetime import datetime
 
 @dataclass
 class AppState:
@@ -46,5 +47,17 @@ class AppState:
     
     # Designer overrides
     custom_pages: Dict[int, str] = field(default_factory=dict)
-
+    
+    # System State
+    startup_time: datetime = field(default_factory=datetime.now)
+    last_api_fetch: Optional[datetime] = None
+    last_log_time: Optional[datetime] = None
+    
+    # Settings persistence tracking
+    settings_last_modified: Dict[str, Any] = field(default_factory=dict)  # key -> {value, modified_by, timestamp}
+    
+    # Discord state
+    discord_ready: bool = False
+    discord_guilds: int = 0
+    
 state = AppState()
