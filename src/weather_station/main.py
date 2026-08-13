@@ -1,284 +1,230 @@
-"""
-SkyCast Weather Station - Main Application
-Application factory pattern with all services integrated
+"""SkyCast Weather Station - Professional multi-surface weather monitoring.
+
+This is the main entry point for the application.
+Run with: python -m weather_station.main
+Or use the console script: skycast
 """
 
+__version__ = "3.0.0"
+__author__ = "SkyCast Team"
+
+# No imports here to avoid circular dependencies
+# Import modules directly where needed
 import asyncio
-import signal
-from typing import Optional
+import logging
+import sys
+import os
 from pathlib import Path
-
-from .core.config import get_settings, Settings
-from .core.state import AppState, app_state
-from .core.events import EventBus, EventType, event_bus
-from .hardware.interfaces import MockHardware, RealHardware, HardwareInterface
-from .persistence.database import DatabaseManager, get_database_manager
-from .input.processor import InputProcessor, GestureConfig, TouchGesture
-from .display.manager import DisplayManager
-from .services.weather import WeatherService
-from .services.system import SystemService
+from dotenv import load_dotenv
 
 
-class WeatherStationApp:
-    """
-    Main application class using factory pattern.
-    Orchestrates all components and services.
-    """
-    
-    def __init__(self, config: Optional[Settings] = None):
-        self.config = config or get_settings()
-        self.state = app_state
-        self.event_bus = event_bus
-        
-        # Components (initialized in run)
-        self.hardware: Optional[HardwareInterface] = None
-        self.db: Optional[DatabaseManager] = None
-        self.input_processor: Optional[InputProcessor] = None
-        self.display_manager: Optional[DisplayManager] = None
-        self.weather_service: Optional[WeatherService] = None
-        self.system_service: Optional[SystemService] = None
-        
-        self._running = False
-        self._shutdown_event = asyncio.Event()
-    
-    async def initialize(self) -> bool:
-        """Initialize all components"""
-        print(f"[SkyCast] Initializing {self.config.app_name} v{self.config.version}")
-        
-        # Initialize database
-        self.db = get_database_manager()
-        self.db.database_url = self.config.database_url
-        if not await self.db.initialize():
-            print("[SkyCast] Database initialization failed")
-            return False
-        
-        # Initialize hardware (mock or real based on config)
-        if self.config.sensor.mock_hardware or self.config.is_mock():
-            self.hardware = MockHardware()
-        else:
-            self.hardware = RealHardware()
-        
-        if not await self.hardware.initialize():
-            print("[SkyCast] Hardware initialization failed, falling back to mock")
-            self.hardware = MockHardware()
-            await self.hardware.initialize()
-        
-        # Initialize display manager
-        self.display_manager = DisplayManager(
-            lcd_interface=self.hardware,
-            state=self.state,
-            auto_dim_seconds=60
-        )
-        if not await self.display_manager.initialize():
-            print("[SkyCast] Display initialization failed")
-            return False
-        
-        # Initialize input processor
-        gesture_config = GestureConfig(
-            debounce_ms=150,
-            tap_timeout_ms=350,
-            short_hold_ms=800,
-            medium_hold_ms=3000,
-            long_hold_ms=5000,
-            extra_long_hold_ms=10000
-        )
-        
-        self.input_processor = InputProcessor(
-            hardware_interface=self.hardware,
-            config=gesture_config,
-            on_gesture=self._handle_gesture
-        )
-        
-        # Initialize weather service
-        self.weather_service = WeatherService(
-            state=self.state,
-            database_manager=self.db,
-            api_key=None,  # Would come from config
-            latitude=self.config.location.latitude,
-            longitude=self.config.location.longitude,
-            fetch_interval=self.config.data.api_fetch_interval
-        )
-        
-        # Initialize system service
-        self.system_service = SystemService(
-            state=self.state,
-            database_manager=self.db,
-            config=self.config,
-            hardware_interface=self.hardware
-        )
-        
-        # Register event handlers
-        self._register_event_handlers()
-        
-        print("[SkyCast] All components initialized")
-        return True
-    
-    def _register_event_handlers(self) -> None:
-        """Register event bus handlers"""
-        self.event_bus.subscribe(EventType.SYSTEM_SHUTDOWN, self._on_shutdown_event)
-        self.event_bus.subscribe(EventType.FACTORY_RESET, self._on_factory_reset)
-    
-    def _handle_gesture(self, gesture: TouchGesture):
-        """Handle touch gestures"""
-        if not self.display_manager:
-            return
-        
-        if gesture == TouchGesture.TAP:
-            # Single tap = next page
-            asyncio.create_task(self.display_manager.next_page())
-        
-        elif gesture == TouchGesture.DOUBLE_TAP:
-            # Double tap = previous page
-            asyncio.create_task(self.display_manager.prev_page())
-        
-        elif gesture == TouchGesture.TRIPLE_TAP:
-            # Triple tap = enter/exit settings
-            if hasattr(self.state, 'display') and self.state.display.in_settings:
-                asyncio.create_task(self.display_manager.exit_settings())
-            else:
-                asyncio.create_task(self.display_manager.enter_settings())
-        
-        elif gesture == TouchGesture.SHORT_HOLD:
-            # Short hold = adjust setting value
-            if hasattr(self.state, 'display') and self.state.display.in_settings:
-                asyncio.create_task(self.display_manager.adjust_setting())
-        
-        elif gesture == TouchGesture.MEDIUM_HOLD:
-            # Medium hold = factory reset
-            print("[SkyCast] Factory reset requested (hold 3s)")
-            if self.system_service:
-                asyncio.create_task(self.system_service.factory_reset())
-        
-        elif gesture == TouchGesture.LONG_HOLD:
-            # Long hold = reboot
-            print("[SkyCast] Reboot requested (hold 5s)")
-            if self.system_service:
-                asyncio.create_task(self.system_service.reboot())
-        
-        elif gesture == TouchGesture.EXTRA_LONG_HOLD:
-            # Extra long hold = shutdown
-            print("[SkyCast] Shutdown requested (hold 10s)")
-            asyncio.create_task(self.shutdown())
-    
-    async def _on_shutdown_event(self, event) -> None:
-        """Handle shutdown event"""
-        await self.shutdown()
-    
-    async def _on_factory_reset(self, event) -> None:
-        """Handle factory reset event"""
-        if self.system_service:
-            await self.system_service.factory_reset()
-    
-    async def run(self) -> None:
-        """Run the application"""
-        if not await self.initialize():
-            print("[SkyCast] Initialization failed, exiting")
-            return
-        
-        self._running = True
-        
-        # Start all services
-        await self.input_processor.start()
-        await self.weather_service.start()
-        await self.system_service.start()
-        
-        # Update state
-        self.state.system.status.value = "running"
-        self.state.system.version = self.config.version
-        
-        # Log startup
-        if self.db:
-            await self.db.log_system_event(
-                event_type='startup',
-                message=f'{self.config.app_name} v{self.config.version} started',
-                source='system'
-            )
-        
-        print(f"[SkyCast] Running - {self.config.app_name} v{self.config.version}")
-        print("[SkyCast] Press Ctrl+C to stop")
-        
-        # Wait for shutdown signal
+# --- 1. ENVIRONMENT LOAD ---
+current_dir = Path(__file__).resolve().parent  # weather_station/
+src_dir = current_dir.parent                   # src/
+root_dir = src_dir.parent                      # weather-station/
+env_path = root_dir / ".env"
+
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+else:
+    # Try current directory as fallback
+    load_dotenv()
+
+
+# --- 2. IMPORTS ---
+from weather_station.core.state import state
+from weather_station.core.config import settings
+from weather_station.utils.logging_setup import setup_logging
+from weather_station.persistence.database import DatabaseManager
+from weather_station.hardware import WeatherLCD, WeatherSensors, WeatherBuzzer
+from weather_station.services import WeatherService, SystemService
+from weather_station.display.manager import DisplayManager
+from weather_station.input.processor import InputProcessor
+from weather_station.web.app import app
+from weather_station.services.discord_bot import WeatherBot
+
+
+# --- 3. LOGGING SETUP ---
+setup_logging()
+logger = logging.getLogger("Main")
+
+
+# --- 4. BACKGROUND TASK DEFINITIONS ---
+
+
+async def weather_fetcher(service: WeatherService) -> None:
+    """Periodically fetches data from Open-Meteo."""
+    while True:
         try:
-            await self._shutdown_event.wait()
-        except asyncio.CancelledError:
-            pass
-        
-        # Shutdown
-        await self.shutdown()
-    
-    async def shutdown(self) -> None:
-        """Graceful shutdown"""
-        if not self._running:
-            return
-        
-        print("[SkyCast] Shutting down...")
-        self._running = False
-        
-        # Stop services
-        if self.input_processor:
-            await self.input_processor.stop()
-        
-        if self.weather_service:
-            await self.weather_service.stop()
-        
-        if self.system_service:
-            await self.system_service.stop()
-        
-        if self.display_manager:
-            await self.display_manager.shutdown()
-        
-        # Graceful hardware shutdown
-        if self.hardware:
-            await self.hardware.shutdown()
-        
-        # Close database
-        if self.db:
-            await self.db.shutdown()
-        
-        # Signal shutdown complete
-        self._shutdown_event.set()
-        
-        print("[SkyCast] Shutdown complete")
-    
-    def get_status(self) -> dict:
-        """Get application status"""
-        return {
-            'running': self._running,
-            'version': self.config.version,
-            'profile': self.config.profile,
-            'mock_hardware': self.config.sensor.mock_hardware,
-            'components': {
-                'hardware': self.hardware is not None,
-                'database': self.db is not None and self.db._initialized,
-                'display': self.display_manager is not None,
-                'input': self.input_processor is not None,
-                'weather': self.weather_service is not None,
-                'system': self.system_service is not None,
-            }
-        }
+            await service.fetch_all()
+            state.last_api_fetch = __import__("datetime").datetime.now()
+        except Exception as e:
+            logger.error(f"Weather fetch error: {e}")
+            state.wifi_error = True
+        await asyncio.sleep(settings.api_rate * 60)
 
 
-def create_app(config: Optional[Settings] = None) -> WeatherStationApp:
-    """Application factory function"""
-    return WeatherStationApp(config)
+async def dht_reader(sensors: WeatherSensors) -> None:
+    """Periodically reads the local DHT11 sensor."""
+    while True:
+        try:
+            temp, humid = sensors.read_dht()
+            if temp is not None:
+                state.indoor_temp_raw = temp
+                state.indoor_temp = temp + settings.dht_temp_offset
+                state.indoor_humid = humid
+                state.dht_error = False
+            else:
+                state.dht_error = True
+        except Exception as e:
+            logger.error(f"DHT read error: {e}")
+            state.dht_error = True
+        await asyncio.sleep(3)
 
 
-async def main():
-    """Main entry point"""
-    app = create_app()
-    
-    # Setup signal handlers
-    loop = asyncio.get_event_loop()
-    
-    def signal_handler():
-        asyncio.create_task(app.shutdown())
-    
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, signal_handler)
-    
-    # Run application
-    await app.run()
+async def data_logger(db: DatabaseManager) -> None:
+    """Periodically logs weather data to database."""
+    while True:
+        try:
+            if state.indoor_temp is not None and state.outdoor_temp != "N/A":
+                await db.save_weather_log(
+                    in_temp=float(state.indoor_temp),
+                    in_humid=float(state.indoor_humid or 0),
+                    out_temp=float(state.outdoor_temp),
+                    out_humid=float(state.outdoor_humid or 0)
+                )
+                state.last_log_time = __import__("datetime").datetime.now()
+        except Exception as e:
+            logger.error(f"Database log error: {e}")
+        await asyncio.sleep(settings.log_rate * 60)
 
 
-if __name__ == '__main__':
-    asyncio.run(main())
+async def run_diagnostics(lcd: WeatherLCD, sensors: WeatherSensors, buzzer: WeatherBuzzer, weather: WeatherService) -> None:
+    """Boot sequence diagnostics with visual feedback."""
+    logger.info("Running Diagnostics...")
+    lcd.clear()
+    lcd.write_lines(" WEATHER STATION", " v3.0 Booting...")
+    buzzer.beep(0.06, repeats=2)
+    await asyncio.sleep(1.2)
+
+    lcd.clear()
+    for i in range(16):
+        lcd.write_lines("Loading System..", "\x06" * (i + 1))
+        await asyncio.sleep(0.08)
+
+    # Sensor Check
+    temp, _ = sensors.read_dht()
+    if temp is None:
+        logger.warning("DHT11 not detected during boot.")
+        lcd.write_lines("Error: DHT11", "Check Sensor")
+        buzzer.error_alert()
+        await asyncio.sleep(2)
+
+    # WiFi/API Check
+    try:
+        await weather.fetch_all()
+        if state.wifi_error:
+            logger.warning("WiFi/API failure during boot.")
+            lcd.write_lines("Error: WiFi", "Offline Mode")
+            buzzer.error_alert()
+            await asyncio.sleep(2)
+    except Exception as e:
+        logger.warning(f"API check failed: {e}")
+        state.wifi_error = True
+        lcd.write_lines("Error: WiFi", "Offline Mode")
+        buzzer.error_alert()
+        await asyncio.sleep(2)
+
+
+async def run_web_server() -> None:
+    """Starts the FastAPI Web Interface."""
+    import uvicorn
+    config = uvicorn.Config(app=app, host=settings.web_host, port=settings.web_port, log_level="warning")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+# --- 5. MAIN ENTRY POINT ---
+
+
+async def main_async() -> None:
+    """Main async entry point for the weather station application."""
+    db: DatabaseManager | None = None
+    lcd: WeatherLCD | None = None
+    buzzer: WeatherBuzzer | None = None
+    
+    try:
+        # Initialize Database
+        db = DatabaseManager()
+        await db.initialize()
+        logger.info("Database initialized")
+
+        # Initialize Hardware
+        lcd = WeatherLCD()
+        sensors = WeatherSensors()
+        buzzer = WeatherBuzzer()
+
+        # Initialize Services
+        weather_service = WeatherService()
+        bot = WeatherBot()
+
+        # Run Diagnostics (Loading Screen)
+        await run_diagnostics(lcd, sensors, buzzer, weather_service)
+
+        logger.info("System Ready. Starting background tasks.")
+
+        # Prepare the core tasks
+        tasks = [
+            weather_fetcher(weather_service),
+            dht_reader(sensors),
+            data_logger(db),
+            DisplayManager(lcd).run_loop(),
+            InputProcessor(sensors, buzzer).run_loop(),
+            run_web_server()
+        ]
+
+        # Check for Discord token
+        token = settings.discord_token or os.getenv("WEATHER_DISCORD_TOKEN")
+
+        if token:
+            logger.info("Discord token detected. Starting Discord Bot...")
+            tasks.append(bot.start(token))
+        else:
+            logger.warning("Discord Token missing. Bot will not start.")
+
+        # Run everything in parallel
+        await asyncio.gather(*tasks)
+
+    except KeyboardInterrupt:
+        logger.info("Shutdown requested by user")
+    except Exception as e:
+        logger.critical(f"Startup failed: {e}", exc_info=True)
+        print(f"CRITICAL STARTUP ERROR: {e}")
+    finally:
+        # Cleanup resources
+        logger.info("Shutting down weather station...")
+        if lcd:
+            try:
+                lcd.clear()
+            except Exception:
+                pass
+        if buzzer:
+            try:
+                buzzer.active_buzzer.close()
+                buzzer.passive_buzzer.close()
+            except Exception:
+                pass
+
+
+def main_entry() -> None:
+    """Console script entry point."""
+    try:
+        asyncio.run(main_async())
+    except KeyboardInterrupt:
+        print("\nShutting down station...")
+        sys.exit(0)
+
+
+# --- 6. DIRECT EXECUTION ---
+if __name__ == "__main__":
+    main_entry()

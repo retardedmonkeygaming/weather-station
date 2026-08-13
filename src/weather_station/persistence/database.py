@@ -1,367 +1,280 @@
-"""
-Database Manager with repository pattern
-Handles all database operations, migrations, and retention policies
-"""
-
-import asyncio
-import json
-from pathlib import Path
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
-from sqlalchemy import select, delete, func
-
-from .models import Base, Setting, SensorLog, AlertLog, DiscordServerConfig, DiscordUserConfig, UpdateCheck, SystemEvent
+import aiosqlite
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from weather_station.core.config import settings
+from weather_station.persistence.models import SCHEMA
 
 
 class DatabaseManager:
-    """
-    Central database manager with repository pattern.
-    Provides thin data-access layer over SQLAlchemy.
-    """
+    """Centralized database manager for all persistence operations."""
     
-    def __init__(self, database_url: str = "sqlite+aiosqlite:///./data/skycast.db"):
-        self.database_url = database_url
-        self.engine: Optional[AsyncEngine] = None
-        self.session_maker: Optional[async_sessionmaker] = None
-        self._initialized = False
-    
-    async def initialize(self) -> bool:
-        """Initialize database connection and create tables"""
-        try:
-            # Ensure data directory exists
-            db_path = Path(self.database_url.replace("sqlite+aiosqlite:///", ""))
-            db_path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or settings.db_file
+
+    async def initialize(self) -> None:
+        """Initialize database with all required tables."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Create all tables from schema
+            for table_name, create_sql in SCHEMA.items():
+                await db.execute(create_sql)
             
-            # Create engine
-            self.engine = create_async_engine(
-                self.database_url,
-                echo=False,
-                future=True
-            )
-            
-            # Create session maker
-            self.session_maker = async_sessionmaker(
-                self.engine,
-                class_=AsyncSession,
-                expire_on_commit=False
-            )
-            
-            # Create all tables
-            async with self.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            
-            self._initialized = True
-            print(f"[DatabaseManager] Initialized: {self.database_url}")
-            return True
-            
-        except Exception as e:
-            print(f"[DatabaseManager] Initialization failed: {e}")
-            return False
-    
-    async def shutdown(self) -> None:
-        """Close database connections"""
-        if self.engine:
-            await self.engine.dispose()
-        self._initialized = False
-        print("[DatabaseManager] Shutdown complete")
-    
-    async def get_session(self) -> AsyncSession:
-        """Get a database session"""
-        if not self.session_maker:
-            raise RuntimeError("Database not initialized")
-        return self.session_maker()
-    
-    # ========== Settings Repository ==========
-    
-    async def get_setting(self, key: str) -> Optional[Setting]:
-        """Get a setting by key"""
-        async with await self.get_session() as session:
-            result = await session.execute(select(Setting).where(Setting.key == key))
-            return result.scalar_one_or_none()
-    
-    async def get_setting_value(self, key: str, default: Any = None) -> Any:
-        """Get setting value with type conversion"""
-        setting = await self.get_setting(key)
-        if setting:
-            return setting.get_typed_value()
-        return default
-    
-    async def set_setting(
-        self,
-        key: str,
-        value: Any,
-        value_type: str = 'string',
-        changed_by: str = 'system',
-        user_id: Optional[str] = None,
-        description: Optional[str] = None
-    ) -> Setting:
-        """Set or update a setting"""
-        async with await self.get_session() as session:
-            # Check if exists
-            result = await session.execute(select(Setting).where(Setting.key == key))
-            setting = result.scalar_one_or_none()
-            
-            if setting:
-                # Update existing
-                setting.value = str(value) if value_type != 'json' else json.dumps(value)
-                setting.value_type = value_type
-                setting.last_changed_by = changed_by
-                setting.changed_by_user_id = user_id
-                if description:
-                    setting.description = description
-            else:
-                # Create new
-                setting = Setting(
-                    key=key,
-                    value=str(value) if value_type != 'json' else json.dumps(value),
-                    value_type=value_type,
-                    last_changed_by=changed_by,
-                    changed_by_user_id=user_id,
-                    description=description
-                )
-                session.add(setting)
-            
-            await session.commit()
-            await session.refresh(setting)
-            return setting
-    
-    async def get_all_settings(self) -> Dict[str, Any]:
-        """Get all settings as dictionary"""
-        async with await self.get_session() as session:
-            result = await session.execute(select(Setting))
-            settings = result.scalars().all()
-            return {s.key: s.to_dict() for s in settings}
-    
-    async def export_settings(self) -> str:
-        """Export all settings as JSON"""
-        settings = await self.get_all_settings()
-        return json.dumps(settings, indent=2)
-    
-    async def import_settings(self, json_data: str, changed_by: str = 'import') -> int:
-        """Import settings from JSON, returns count of imported settings"""
-        settings_dict = json.loads(json_data)
-        count = 0
-        for key, data in settings_dict.items():
-            await self.set_setting(
-                key=key,
-                value=data.get('value'),
-                value_type=data.get('value_type', 'string'),
-                changed_by=changed_by
-            )
-            count += 1
-        return count
-    
-    async def factory_reset_settings(self, keep_logs: bool = True) -> None:
-        """Reset all settings to defaults, optionally keeping logs"""
-        async with await self.get_session() as session:
-            # Delete non-system settings
-            await session.execute(delete(Setting).where(Setting.is_system == False))
-            await session.commit()
+            # Initialize default settings if not present
+            await self._init_default_settings(db)
+            await db.commit()
+
+    async def _init_default_settings(self, db: aiosqlite.Connection) -> None:
+        """Insert default settings if they don't exist."""
+        defaults = [
+            ("unit", "C", "system"),
+            ("buzzer_mode", "ALL", "system"),
+            ("api_rate", str(settings.api_rate), "system"),
+            ("log_rate", str(settings.log_rate), "system"),
+            ("alert_enabled", "False", "system"),
+            ("alert_hour", str(settings.alert_hour), "system"),
+            ("alert_minute", str(settings.alert_minute), "system"),
+            ("theme", "auto", "system"),
+            ("idle_timeout", str(settings.idle_timeout), "system"),
+        ]
         
-        if not keep_logs:
-            await self.clear_old_logs(days=0)
-    
-    # ========== Sensor Logs Repository ==========
-    
-    async def log_sensor_data(
-        self,
-        temperature: Optional[float] = None,
-        humidity: Optional[float] = None,
-        pressure: Optional[float] = None,
-        aqi: Optional[int] = None,
-        aqi_status: Optional[str] = None,
-        feels_like: Optional[float] = None,
-        station_id: str = 'default',
-        source: str = 'api'
-    ) -> SensorLog:
-        """Log sensor data"""
-        async with await self.get_session() as session:
-            log = SensorLog(
-                temperature=temperature,
-                humidity=humidity,
-                pressure=pressure,
-                aqi=aqi,
-                aqi_status=aqi_status,
-                feels_like=feels_like,
-                station_id=station_id,
-                source=source
+        for key, value, modified_by in defaults:
+            await db.execute(
+                "INSERT OR IGNORE INTO settings (key, value, modified_by) VALUES (?, ?, ?)",
+                (key, value, modified_by)
             )
-            session.add(log)
-            await session.commit()
-            await session.refresh(log)
-            return log
-    
-    async def get_recent_sensor_logs(
-        self,
-        hours: int = 24,
-        station_id: str = 'default'
-    ) -> List[SensorLog]:
-        """Get recent sensor logs"""
-        async with await self.get_session() as session:
-            cutoff = datetime.utcnow() - timedelta(hours=hours)
-            result = await session.execute(
-                select(SensorLog)
-                .where(SensorLog.timestamp >= cutoff)
-                .where(SensorLog.station_id == station_id)
-                .order_by(SensorLog.timestamp.desc())
-            )
-            return list(result.scalars().all())
-    
-    async def clear_old_logs(self, days: int = 30) -> int:
-        """Clear logs older than specified days, returns deleted count"""
-        async with await self.get_session() as session:
-            cutoff = datetime.utcnow() - timedelta(days=days)
-            result = await session.execute(
-                delete(SensorLog).where(SensorLog.timestamp < cutoff)
-            )
-            deleted = result.rowcount
-            await session.commit()
-            return deleted
-    
-    # ========== Alert Logs Repository ==========
-    
-    async def log_alert(
-        self,
-        alert_type: str,
-        message: str,
-        severity: str = 'warning',
-        value: Optional[float] = None,
-        threshold: Optional[float] = None,
-        station_id: str = 'default'
-    ) -> AlertLog:
-        """Log an alert"""
-        async with await self.get_session() as session:
-            alert = AlertLog(
-                alert_type=alert_type,
-                message=message,
-                severity=severity,
-                value=value,
-                threshold=threshold,
-                station_id=station_id
-            )
-            session.add(alert)
-            await session.commit()
-            await session.refresh(alert)
-            return alert
-    
-    # ========== Discord Config Repository ==========
-    
-    async def get_discord_server_config(self, guild_id: str) -> Optional[DiscordServerConfig]:
-        """Get Discord server config"""
-        async with await self.get_session() as session:
-            result = await session.execute(
-                select(DiscordServerConfig).where(DiscordServerConfig.guild_id == guild_id)
-            )
-            return result.scalar_one_or_none()
-    
-    async def upsert_discord_server_config(
-        self,
-        guild_id: str,
-        **kwargs
-    ) -> DiscordServerConfig:
-        """Create or update Discord server config"""
-        async with await self.get_session() as session:
-            result = await session.execute(
-                select(DiscordServerConfig).where(DiscordServerConfig.guild_id == guild_id)
-            )
-            config = result.scalar_one_or_none()
-            
-            if config:
-                for key, value in kwargs.items():
-                    if hasattr(config, key):
-                        setattr(config, key, value)
-            else:
-                config = DiscordServerConfig(guild_id=guild_id, **kwargs)
-                session.add(config)
-            
-            await session.commit()
-            await session.refresh(config)
-            return config
-    
-    async def get_discord_user_config(self, user_id: str) -> Optional[DiscordUserConfig]:
-        """Get Discord user config"""
-        async with await self.get_session() as session:
-            result = await session.execute(
-                select(DiscordUserConfig).where(DiscordUserConfig.user_id == user_id)
-            )
-            return result.scalar_one_or_none()
-    
-    # ========== Update Check Repository ==========
-    
-    async def save_update_check(self, update_data: Dict[str, Any]) -> UpdateCheck:
-        """Save update check result"""
-        async with await self.get_session() as session:
-            # Get or create
-            result = await session.execute(select(UpdateCheck).order_by(UpdateCheck.id.desc()))
-            check = result.scalar_one_or_none()
-            
-            if check:
-                check.current_version = update_data.get('current_version', check.current_version)
-                check.latest_version = update_data.get('latest_version')
-                check.update_available = update_data.get('update_available', False)
-                check.release_notes = update_data.get('release_notes')
-                check.release_url = update_data.get('release_url')
-                check.last_checked_at = datetime.utcnow()
-                check.last_check_success = update_data.get('success', True)
-                check.last_check_error = update_data.get('error')
-            else:
-                check = UpdateCheck(**update_data)
-                session.add(check)
-            
-            await session.commit()
-            await session.refresh(check)
-            return check
-    
-    async def get_last_update_check(self) -> Optional[UpdateCheck]:
-        """Get last update check result"""
-        async with await self.get_session() as session:
-            result = await session.execute(
-                select(UpdateCheck).order_by(UpdateCheck.id.desc())
-            )
-            return result.scalar_one_or_none()
-    
-    # ========== System Events Repository ==========
-    
-    async def log_system_event(
-        self,
-        event_type: str,
-        message: str,
-        source: str = 'system',
-        severity: str = 'info',
-        details: Optional[Dict] = None,
-        user_id: Optional[str] = None
-    ) -> SystemEvent:
-        """Log a system event"""
-        async with await self.get_session() as session:
-            event = SystemEvent(
-                event_type=event_type,
-                message=message,
-                source=source,
-                severity=severity,
-                details=details,
-                user_id=user_id
-            )
-            session.add(event)
-            await session.commit()
-            await session.refresh(event)
-            return event
-    
-    async def get_recent_events(self, limit: int = 50) -> List[SystemEvent]:
-        """Get recent system events"""
-        async with await self.get_session() as session:
-            result = await session.execute(
-                select(SystemEvent)
-                .order_by(SystemEvent.timestamp.desc())
-                .limit(limit)
-            )
-            return list(result.scalars().all())
 
+    async def get_logs(self, limit: int = 15) -> List[tuple]:
+        """Fetch recent weather logs."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                f"SELECT timestamp, in_temp, in_humid, out_temp, out_humid FROM weather_logs ORDER BY id DESC LIMIT {limit}"
+            ) as cursor:
+                return await cursor.fetchall()
 
-# Global database manager instance
-db_manager = DatabaseManager()
+    async def get_total_logs(self) -> int:
+        """Get total count of weather logs."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM weather_logs") as cursor:
+                res = await cursor.fetchone()
+                return res[0] if res else 0
 
+    async def save_weather_log(
+        self, 
+        in_temp: float, 
+        in_humid: float, 
+        out_temp: float, 
+        out_humid: float
+    ) -> None:
+        """Save a new weather log entry."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO weather_logs (in_temp, in_humid, out_temp, out_humid) VALUES (?, ?, ?, ?)",
+                (in_temp, in_humid, out_temp, out_humid)
+            )
+            await db.commit()
 
-def get_database_manager() -> DatabaseManager:
-    """Get the global database manager instance"""
-    return db_manager
+    async def save_page_assignment(self, page_id: int, widget_type: str) -> None:
+        """Save UI page widget assignment."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT OR REPLACE INTO ui_pages (page_id, widget_type) VALUES (?, ?)",
+                (page_id, widget_type)
+            )
+            await db.commit()
+
+    async def delete_page_assignment(self, page_id: int) -> None:
+        """Delete UI page widget assignment."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM ui_pages WHERE page_id = ?", (page_id,))
+            await db.commit()
+            
+    async def save_setting(
+        self, 
+        key: str, 
+        value: str, 
+        modified_by: str = "web"
+    ) -> None:
+        """Save a setting with tracking of who modified it."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT OR REPLACE INTO settings (key, value, modified_by, modified_at) VALUES (?, ?, ?, ?)",
+                (key, value, modified_by, datetime.now().isoformat())
+            )
+            await db.commit()
+
+    async def get_setting(self, key: str, default: str = "") -> str:
+        """Get a single setting value."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else default
+
+    async def get_all_settings(self) -> Dict[str, Any]:
+        """Get all settings as a dictionary."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT key, value, modified_by, modified_at FROM settings") as cursor:
+                rows = await cursor.fetchall()
+                return {
+                    row[0]: {
+                        "value": row[1],
+                        "modified_by": row[2],
+                        "modified_at": row[3]
+                    }
+                    for row in rows
+                }
+
+    async def save_discord_server(
+        self,
+        server_id: str,
+        channel_id: Optional[str] = None,
+        allowed_roles: Optional[str] = None,
+        nl_enabled: bool = True,
+        briefing_hour: int = 7,
+        quiet_hours_start: int = 22,
+        quiet_hours_end: int = 7
+    ) -> None:
+        """Save Discord server configuration."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """INSERT OR REPLACE INTO discord_servers 
+                   (server_id, channel_id, allowed_roles, nl_enabled, briefing_hour, quiet_hours_start, quiet_hours_end)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (server_id, channel_id, allowed_roles, nl_enabled, briefing_hour, quiet_hours_start, quiet_hours_end)
+            )
+            await db.commit()
+
+    async def get_discord_server(self, server_id: str) -> Optional[Dict[str, Any]]:
+        """Get Discord server configuration."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM discord_servers WHERE server_id = ?", (server_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def save_discord_user(
+        self,
+        user_id: str,
+        preferred_units: str = "C",
+        dm_briefing_enabled: bool = False,
+        custom_thresholds: Optional[str] = None
+    ) -> None:
+        """Save Discord user preferences."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """INSERT OR REPLACE INTO discord_users 
+                   (user_id, preferred_units, dm_briefing_enabled, custom_thresholds)
+                   VALUES (?, ?, ?, ?)""",
+                (user_id, preferred_units, dm_briefing_enabled, custom_thresholds)
+            )
+            await db.commit()
+
+    async def get_discord_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get Discord user preferences."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM discord_users WHERE user_id = ?", (user_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def log_system_event(self, event_type: str, event_data: str) -> None:
+        """Log a system event for diagnostics."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO system_events (event_type, event_data) VALUES (?, ?)",
+                (event_type, event_data)
+            )
+            await db.commit()
+
+    async def get_recent_events(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recent system events."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM system_events ORDER BY timestamp DESC LIMIT ?", (limit,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def save_update_check(
+        self,
+        current_version: str,
+        latest_version: str,
+        release_notes: Optional[str] = None,
+        update_available: bool = False
+    ) -> None:
+        """Save GitHub update check result."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Clear old entries
+            await db.execute("DELETE FROM update_checks")
+            await db.execute(
+                """INSERT INTO update_checks 
+                   (last_check, current_version, latest_version, release_notes, update_available)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (datetime.now().isoformat(), current_version, latest_version, release_notes, update_available)
+            )
+            await db.commit()
+
+    async def get_update_status(self) -> Optional[Dict[str, Any]]:
+        """Get the latest update check status."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM update_checks ORDER BY id DESC LIMIT 1") as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def vacuum(self) -> None:
+        """Vacuum database to optimize storage."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("VACUUM")
+            await db.commit()
+
+    async def export_config(self) -> Dict[str, Any]:
+        """Export all configuration as JSON-serializable dict."""
+        settings_data = await self.get_all_settings()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            # Get page assignments
+            async with db.execute("SELECT * FROM ui_pages") as cursor:
+                pages = [dict(row) for row in await cursor.fetchall()]
+            
+            # Get Discord servers
+            async with db.execute("SELECT * FROM discord_servers") as cursor:
+                servers = [dict(row) for row in await cursor.fetchall()]
+            
+            # Get Discord users
+            async with db.execute("SELECT * FROM discord_users") as cursor:
+                users = [dict(row) for row in await cursor.fetchall()]
+        
+        return {
+            "settings": settings_data,
+            "ui_pages": pages,
+            "discord_servers": servers,
+            "discord_users": users,
+            "exported_at": datetime.now().isoformat()
+        }
+
+    async def import_config(self, config: Dict[str, Any]) -> None:
+        """Import configuration from exported dict."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Import settings
+            for key, data in config.get("settings", {}).items():
+                value = data.get("value", "") if isinstance(data, dict) else data
+                await db.execute(
+                    "INSERT OR REPLACE INTO settings (key, value, modified_by, modified_at) VALUES (?, ?, ?, ?)",
+                    (key, value, "import", datetime.now().isoformat())
+                )
+            
+            # Import UI pages
+            for page in config.get("ui_pages", []):
+                await db.execute(
+                    "INSERT OR REPLACE INTO ui_pages (page_id, widget_type) VALUES (?, ?)",
+                    (page.get("page_id"), page.get("widget_type"))
+                )
+            
+            await db.commit()
