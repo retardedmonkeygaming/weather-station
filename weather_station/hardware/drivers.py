@@ -255,9 +255,10 @@ class RealLCD:
         self._d6 = digitalio.DigitalInOut(getattr(board, f"D{d6}"))
         self._d7 = digitalio.DigitalInOut(getattr(board, f"D{d7}"))
         
+        # adafruit_character_lcd API: columns only (rows=2 is default for Mono)
         self._lcd = character_lcd.Character_LCD_Mono(
             self._rs, self._en, self._d4, self._d5, self._d6, self._d7,
-            columns=16, rows=2
+            columns=16
         )
     
     @property
