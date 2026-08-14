@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skycast-weather-station"
+version = "3.0.0"
+description = "Professional multi-surface weather monitoring for Raspberry Pi"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "SkyCast Team", email = "skycast@example.com"}
+]
+keywords = ["weather", "raspberry-pi", "iot", "home-automation", "discord-bot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Home Automation",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "websockets>=12.0",
+    "jinja2>=3.1.3",
+    "python-multipart>=0.0.6",
+    "gpiozero>=2.0",
+    "RPi.GPIO>=0.7.1; platform_system=='Linux' and platform_machine=='armv7l'",
+    "spidev>=3.6; platform_system=='Linux' and platform_machine=='armv7l'",
+    "smbus2>=0.5.0; platform_system=='Linux' and platform_machine=='armv7l'",
+    "adafruit-circuitpython-ssd1306>=2.11.0",
+    "Pillow>=10.2.0",
+    "aiohttp>=3.9.1",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "discord.py>=2.3.2",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "aiosqlite>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+]
+
+[project.scripts]
+skycast = "weather_station.main:main_entry"
+weather-station = "weather_station.main:main_entry"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/weather-station"
+Documentation = "https://github.com/yourusername/weather-station#readme"
+Repository = "https://github.com/yourusername/weather-station.git"
+Issues = "https://github.com/yourusername/weather-station/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+weather_station = ["web/templates/*.html", "web/static/*.css", "web/static/*.js"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

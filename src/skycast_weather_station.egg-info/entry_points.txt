@@ -1,0 +1,3 @@
+[console_scripts]
+skycast = weather_station.main:main_entry
+weather-station = weather_station.main:main_entry

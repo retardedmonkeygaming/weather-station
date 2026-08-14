@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User-Friendly Screen Page Designer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #eceff1; color: #37474f; }
+        h1 { color: #0288d1; margin-bottom: 10px; }
+        .guide-banner { background: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: 500; }
+        .page-selector { display: flex; align-items: center; gap: 10px; background: white; padding: 14px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 20px; flex-wrap: wrap; }
+        .page-btn { padding: 8px 16px; background: #cfd8dc; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 14px; border: none; color: #455a64; transition: 0.2s; }
+        .page-btn.active { background: #0288d1; color: white; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
+        .widget-card { background: white; border: 2px solid #b0bec5; border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 3px 6px rgba(0,0,0,0.05); }
+        .widget-card:hover { border-color: #0288d1; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        .widget-card.selected { border-color: #2e7d32; background-color: #e8f5e9; }
+        .lcd-preview-card { background: #1b2a1a; color: #33ff33; font-family: 'Courier New', monospace; padding: 15px; border-radius: 8px; border: 4px solid #2e4d2a; font-size: 18px; font-weight: bold; white-space: pre; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-top: 20px; display:inline-block; }
+        .action-bar { margin-top: 20px; display: flex; gap: 12px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; font-size: 14px; transition: 0.2s; }
+        .btn-save { background-color: #2e7d32; }
+        .btn-reset { background-color: #ed6c02; }
+        .btn-delete { background-color: #c62828; }
+    </style>
+</head>
+<body>
+    <h1>LCD Screen Designer (1 Page = 1 Widget)</h1>
+    <div style="margin-bottom: 20px; background: #0288d1; padding: 12px 20px; border-radius: 8px;">
+        <a href="/" style="margin-right: 20px; text-decoration: none; color: white; font-weight: bold;">Dashboard</a>
+        <a href="/designer" style="text-decoration: none; color: white; font-weight: bold;">UI Designer</a>
+    </div>
+
+    <div class="guide-banner">
+        🎯 <strong>How it works:</strong> Pick a LCD Page tab below, then click any Widget card. Click <strong>Apply & Save</strong> to sync!
+    </div>
+
+    <div class="page-selector">
+        <strong>Select LCD Screen Page:</strong>
+        <div id="page-tabs" style="display:flex; gap:8px;"></div>
+        <button class="page-btn" onclick="addPage()" style="background:#0288d1; color:white;">+ Add Page</button>
+    </div>
+
+    <h3>Choose Widget for <span id="current-page-label" style="color:#0288d1;">Page 1</span>:</h3>
+
+    <div class="grid-container">
+        <div class="widget-card" id="card_widget_indoor" onclick="selectWidget('widget_indoor')">🌡️<br>Indoor Climate</div>
+        <div class="widget-card" id="card_widget_outdoor" onclick="selectWidget('widget_outdoor')">☀️<br>Outdoor Weather</div>
+        <div class="widget-card" id="card_widget_moon" onclick="selectWidget('widget_moon')">🌙<br>Moon Phase</div>
+        <div class="widget-card" id="card_widget_aqi" onclick="selectWidget('widget_aqi')">🍃<br>Air Quality</div>
+        <div class="widget-card" id="card_widget_pi" onclick="selectWidget('widget_pi')">🤖<br>Pi System Info</div>
+        <div class="widget-card" id="card_widget_clock" onclick="selectWidget('widget_clock')">🕒<br>Digital Clock</div>
+    </div>
+
+    <div style="margin-top:25px;">
+        <h3>Physical LCD 16x2 Display Live Preview:</h3>
+        <div class="lcd-preview-card" id="lcd-preview">Line 1 Loading..\nLine 2 Loading..</div>
+    </div>
+
+    <div class="action-bar">
+        <button class="btn btn-save" onclick="savePageAssignment()">💾 Apply & Save to LCD Display</button>
+        <button class="btn btn-reset" onclick="resetPageToDefault()">🔄 Reset Page to Default</button>
+        <button class="btn btn-delete" onclick="deleteCurrentPage()">🗑️ Delete This Page</button>
+    </div>
+
+    <script>
+        let activePage = 1; let totalPages = 6; let pageAssignments = {}; let selectedWidgetType = "";
+
+        async function initDesigner() {
+            try { let res = await fetch('/api/pages'); pageAssignments = await res.json(); } catch(e) {}
+            renderTabs(); loadPage(1);
+        }
+
+        function renderTabs() {
+            let container = document.getElementById("page-tabs"); container.innerHTML = "";
+            for (let i = 1; i <= totalPages; i++) {
+                let btn = document.createElement("button");
+                btn.className = "page-btn" + (i === activePage ? " active" : "");
+                btn.innerText = "Page " + i; btn.onclick = () => switchPage(i);
+                container.appendChild(btn);
+            }
+        }
+
+        function addPage() { if (totalPages >= 10) return; totalPages++; switchPage(totalPages); }
+
+        function switchPage(pageId) { activePage = pageId; document.getElementById("current-page-label").innerText = "Page " + pageId; renderTabs(); loadPage(pageId); }
+
+        function loadPage(pageId) { selectedWidgetType = pageAssignments[pageId] || "widget_clock"; highlightSelectedWidget(selectedWidgetType); }
+
+        function highlightSelectedWidget(w) { 
+            document.querySelectorAll(".widget-card").forEach(c => c.classList.remove("selected"));
+            if(document.getElementById("card_"+w)) document.getElementById("card_"+w).classList.add("selected");
+        }
+
+        function selectWidget(w) { selectedWidgetType = w; highlightSelectedWidget(w); }
+
+        async function savePageAssignment() {
+            await fetch('/api/save-page', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_id: activePage, widget_type: selectedWidgetType }) });
+            pageAssignments[activePage] = selectedWidgetType; alert("Saved!");
+        }
+
+        async function resetPageToDefault() { selectWidget("widget_clock"); await savePageAssignment(); }
+
+        async function deleteCurrentPage() {
+            if (activePage <= 6) return alert("Cannot delete core pages!");
+            await fetch('/api/delete-page', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_id: activePage }) });
+            delete pageAssignments[activePage]; totalPages--; switchPage(1);
+        }
+
+        async function updateLCDPreview() {
+            try {
+                let res = await fetch('/api/data'); let data = await res.json();
+                let l1 = (data.lcd_line1 + "                ").substring(0,16);
+                let l2 = (data.lcd_line2 + "                ").substring(0,16);
+                document.getElementById("lcd-preview").innerText = l1 + "\n" + l2;
+            } catch(e) {}
+        }
+        setInterval(updateLCDPreview, 1000); initDesigner();
+    </script>
+</body>
+</html>
