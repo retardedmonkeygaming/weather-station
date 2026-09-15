@@ -1,64 +1,47 @@
-
+# ==============================================================================
 # SkyCast Weather Station - Requirements
 # Compatible with Python 3.9+
+# ==============================================================================
 
-# Core Web Framework
-fastapi>=0.109.0,<1.0.0
-uvicorn[standard]>=0.27.0,<1.0.0
+# Core Web Framework & Async Stack
+fastapi>=0.110.0,<1.0.0
+uvicorn[standard]>=0.29.0,<1.0.0
 websockets>=12.0,<13.0.0
 jinja2>=3.1.3,<4.0.0
-python-multipart>=0.0.6,<1.0.0
+python-multipart>=0.0.9,<1.0.0
 
-# Hardware & GPIO (Raspberry Pi)
-# Note: RPi.GPIO and spidev require Raspberry Pi hardware or mock setup on desktop
+# Hardware & GPIO (Raspberry Pi Setup)
+# Note: RPi.GPIO and spidev require Raspberry Pi hardware or desktop mock setups
 gpiozero>=2.0,<3.0.0
 RPi.GPIO>=0.7.1,<1.0.0; sys_platform == 'linux' and platform_machine == 'armv7l' or platform_machine == 'aarch64'
 spidev>=3.6,<4.0.0; sys_platform == 'linux' and platform_machine == 'armv7l' or platform_machine == 'aarch64'
 smbus2>=0.5.0,<1.0.0
-adafruit-circuitpython-ssd1306>=2.11.0,<3.0.0
 Pillow>=10.2.0,<11.0.0
 
-# External APIs & Networking
+# Adafruit CircuitPython Drivers
+adafruit-blinka>=8.0.0,<9.0.0
+adafruit-circuitpython-ssd1306>=2.11.0,<3.0.0
+adafruit-circuitpython-dht>=4.0.0,<5.0.0
+adafruit-circuitpython-charlcd>=3.5.7,<4.0.0
+
+# External APIs, Networking & Integrations
 aiohttp>=3.9.1,<4.0.0
 requests>=2.31.0,<3.0.0
 python-dotenv>=1.0.0,<2.0.0
+paho-mqtt>=1.6.0,<2.0.0
 
-# Discord Bot
+# Discord Bot Integration (Optional — disables itself if token is missing)
 discord.py>=2.3.2,<3.0.0
 
-# Configuration & Validation
+# Configuration, Database & Utilities
 pydantic>=2.5.3,<3.0.0
 pydantic-settings>=2.1.0,<3.0.0
-
-# Database
-aiosqlite>=0.19.0,<1.0.0
-
-# Utilities
+aiosqlite>=0.20.0,<1.0.0
 asyncio>=3.4.3
 typing-extensions>=4.9.0,<5.0.0
 
-# Optional: Development & Testing
+# Optional: Development & Testing (Uncomment if needed)
 # pytest>=7.4.0
 # pytest-asyncio>=0.21.0
 # black>=23.12.0
 # ruff>=0.1.0
-
-# Web / async stack
-fastapi>=0.110
-uvicorn>=0.29
-python-multipart>=0.0.9
-aiohttp>=3.9
-aiosqlite>=0.20
-
-# Discord integration (optional — bot disables itself without it)
-discord.py>=2.3
-
-# MQTT publishing (optional — disabled unless MQTT_BROKER is set in .env)
-paho-mqtt>=1.6
-
-# Raspberry Pi hardware (imported only when running on a Pi)
-adafruit-circuitpython-charlcd>=4.6
-adafruit-circuitpython-dht>=4.0
-adafruit-blinka>=8.0
-gpiozero>=2.0
-
