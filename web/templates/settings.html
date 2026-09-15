@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings & Calibration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background: #020617; font-family: 'Inter', system-ui, sans-serif; }
+        .glass {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+        select, input {
+            background: rgba(2, 6, 23, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        select:focus, input:focus { outline: 2px solid #0ea5e9; outline-offset: 1px; }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+<nav class="glass sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <span class="text-2xl">⚙️</span>
+        <span class="font-bold text-lg tracking-tight">Settings & Calibration</span>
+    </div>
+    <div class="flex gap-1 sm:gap-2 text-sm font-medium">
+        <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Dashboard</a>
+        <a href="/designer" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Designer</a>
+        <a href="/logs" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Logs</a>
+        <a href="/settings" class="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300">Settings</a>
+    </div>
+</nav>
+
+<main class="max-w-3xl mx-auto px-6 py-8 space-y-6">
+
+    <!-- LOCATION -->
+    <section class="glass rounded-2xl p-6">
+        <h2 class="font-bold text-lg mb-4">📍 Location</h2>
+        <form action="/update-location" method="post" class="grid grid-cols-2 gap-4">
+            <label class="text-sm">
+                <span class="text-slate-400">Latitude</span>
+                <input type="text" name="latitude" value="{{ latitude }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2 text-sm text-slate-100">
+            </label>
+            <label class="text-sm">
+                <span class="text-slate-400">Longitude</span>
+                <input type="text" name="longitude" value="{{ longitude }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2 text-sm text-slate-100">
+            </label>
+            <div class="col-span-2">
+                <button type="submit" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold transition">Update location</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- DHT CALIBRATION -->
+    <section class="glass rounded-2xl p-6">
+        <h2 class="font-bold text-lg mb-4">🌡️ DHT11 Auto-Calibration</h2>
+        <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+            <p class="text-slate-400">Raw sensor temp: <span class="text-slate-100 font-semibold">{{ raw_temp }}</span></p>
+            <p class="text-slate-400">Offset: <span class="text-slate-100 font-semibold">{{ offset }}</span></p>
+            <p class="text-slate-400">Calibrated: <span class="text-slate-100 font-semibold">{{ calibrated }}</span></p>
+            <p class="text-slate-400">Outdoor API: <span class="text-slate-100 font-semibold">{{ outdoor }}</span></p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <form action="/calibrate-dht" method="post">
+                <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition">Auto-calibrate vs outdoor API</button>
+            </form>
+            <form action="/reset-dht" method="post">
+                <button type="submit" class="px-5 py-2 rounded-xl bg-slate-600 hover:bg-slate-500 text-white text-sm font-bold transition">Reset offset (0.0)</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- PREFERENCES -->
+    <section class="glass rounded-2xl p-6">
+        <h2 class="font-bold text-lg mb-4">🎛️ Device Preferences</h2>
+        <form action="/update-settings" method="post" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <label><span class="text-slate-400">Temperature unit</span>
+                <select name="unit" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="C" {{ sel_unit_C }}>Celsius</option>
+                    <option value="F" {{ sel_unit_F }}>Fahrenheit</option>
+                </select>
+            </label>
+            <label><span class="text-slate-400">Buzzer mode</span>
+                <select name="buzzer" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ALL" {{ sel_buzzer_ALL }}>ALL — all beeps</option>
+                    <option value="ERR" {{ sel_buzzer_ERR }}>ERR — errors only</option>
+                    <option value="MUTE" {{ sel_buzzer_MUTE }}>MUTE — silent</option>
+                </select>
+            </label>
+            <label><span class="text-slate-400">LCD screen</span>
+                <select name="screen" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ON" {{ sel_screen_ON }}>ON</option>
+                    <option value="OFF" {{ sel_screen_OFF }}>OFF</option>
+                </select>
+            </label>
+            <label><span class="text-slate-400">Auto-scroll</span>
+                <select name="auto_scroll" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="0" {{ sel_scroll_0 }}>Disabled</option>
+                    <option value="3" {{ sel_scroll_3 }}>3 s</option>
+                    <option value="5" {{ sel_scroll_5 }}>5 s</option>
+                    <option value="10" {{ sel_scroll_10 }}>10 s</option>
+                </select>
+            </label>
+            <label><span class="text-slate-400">Daily alarm</span>
+                <select name="alarm_on" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ON" {{ sel_alarm_on_ON }}>ON</option>
+                    <option value="OFF" {{ sel_alarm_on_OFF }}>OFF</option>
+                </select>
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+                <label><span class="text-slate-400">Alarm hour</span>
+                    <input type="number" name="alarm_hr" min="0" max="23" value="{{ alarm_hr }}"
+                           class="mt-1 w-full rounded-xl px-3 py-2">
+                </label>
+                <label><span class="text-slate-400">Alarm minute</span>
+                    <input type="number" name="alarm_min" min="0" max="59" value="{{ alarm_min }}"
+                           class="mt-1 w-full rounded-xl px-3 py-2">
+                </label>
+            </div>
+            <label><span class="text-slate-400">API fetch interval</span>
+                <select name="api_rate" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="5" {{ sel_api_5 }}>5 min</option>
+                    <option value="10" {{ sel_api_10 }}>10 min</option>
+                    <option value="15" {{ sel_api_15 }}>15 min</option>
+                </select>
+            </label>
+            <label><span class="text-slate-400">DB log interval</span>
+                <select name="log_rate" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="5" {{ sel_log_5 }}>5 min</option>
+                    <option value="15" {{ sel_log_15 }}>15 min</option>
+                    <option value="30" {{ sel_log_30 }}>30 min</option>
+                </select>
+            </label>
+            <!-- ENH 4: Voice Mode -->
+            <label><span class="text-slate-400">Voice Mode <span class="text-[10px] text-sky-400">(ENH 4)</span></span>
+                <select name="voice_mode" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ON" {{ sel_voice_ON }}>ON — speak temps</option>
+                    <option value="OFF" {{ sel_voice_OFF }}>OFF</option>
+                </select>
+            </label>
+            <!-- ENH 5: Guest Mode -->
+            <label><span class="text-slate-400">Guest Mode <span class="text-[10px] text-sky-400">(ENH 5)</span></span>
+                <select name="guest_mode" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ON" {{ sel_guest_ON }}>ON — dim after 30m idle</option>
+                    <option value="OFF" {{ sel_guest_OFF }}>OFF</option>
+                </select>
+            </label>
+            <div class="sm:col-span-2 text-xs text-amber-400" id="voice-hint">{{ voice_backend_hint }}</div>
+            <div class="sm:col-span-2">
+                <button type="submit" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold transition">Save settings</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- DANGER ZONE -->
+    <section class="rounded-2xl p-6 border border-rose-800/50 bg-rose-950/20">
+        <h2 class="font-bold text-lg mb-2 text-rose-300">⚠️ Danger Zone</h2>
+        <p class="text-sm text-slate-400 mb-4">Restores all settings to factory defaults and clears custom page assignments.</p>
+        <form action="/factory-reset" method="post" onsubmit="return confirm('Restore factory defaults? Custom pages will be erased.');">
+            <button type="submit" class="px-5 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-sm font-bold transition">Factory reset</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

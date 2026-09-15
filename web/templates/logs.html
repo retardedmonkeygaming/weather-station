@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background: #020617; font-family: 'Inter', system-ui, sans-serif; }
+        .glass {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+<nav class="glass sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <span class="text-2xl">📜</span>
+        <span class="font-bold text-lg tracking-tight">System Logs</span>
+    </div>
+    <div class="flex gap-1 sm:gap-2 text-sm font-medium">
+        <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Dashboard</a>
+        <a href="/designer" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Designer</a>
+        <a href="/logs" class="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300">Logs</a>
+        <a href="/settings" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Settings</a>
+    </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-6">
+    <header class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight">Environmental Log History</h1>
+            <p class="text-slate-400 text-sm mt-1"><strong class="text-slate-200">{{ total_count }}</strong> entries recorded · showing latest 100</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <a href="/api/export-logs" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold transition">📥 Export CSV</a>
+            <!-- ENH 6: Export All Data -->
+            <a href="/api/export/all?format=json"
+               class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition">🗄️ Export All (JSON)</a>
+            <a href="/api/export/all?format=csv"
+               class="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold transition">🗂️ Export All (CSV)</a>
+            <form action="/clear-logs" method="post" onsubmit="return confirm('Delete ALL log history? This cannot be undone.');">
+                <button type="submit" class="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-sm font-bold transition">🗑️ Clear database</button>
+            </form>
+        </div>
+    </header>
+
+    <section class="glass rounded-2xl p-4 overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-slate-400 border-b border-slate-700/60">
+                    <th class="px-4 py-2 font-semibold">ID</th>
+                    <th class="px-4 py-2 font-semibold">Timestamp</th>
+                    <th class="px-4 py-2 font-semibold">Indoor °C</th>
+                    <th class="px-4 py-2 font-semibold">Indoor %</th>
+                    <th class="px-4 py-2 font-semibold">Outdoor °C</th>
+                    <th class="px-4 py-2 font-semibold">Outdoor %</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60">
+                {{ table_rows }}
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

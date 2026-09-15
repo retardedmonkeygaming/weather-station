@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LCD Page Designer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background: #020617; font-family: 'Inter', system-ui, sans-serif; }
+        .glass {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+        /* Pixel-perfect 16x2 LCD simulation */
+        .lcd-sim {
+            background: #9bbc0f;            /* classic green LCD backdrop */
+            background: linear-gradient(180deg, #a8c93a 0%, #86b32e 100%);
+            color: #1c2b16;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 22px;
+            line-height: 1.45;
+            letter-spacing: 0.35em;
+            border-radius: 8px;
+            border: 10px solid #23331d;
+            box-shadow: inset 0 2px 14px rgba(0,0,0,0.45), 0 10px 40px rgba(0,0,0,0.5);
+            padding: 14px 18px;
+            white-space: pre;
+            image-rendering: pixelated;
+        }
+        .lcd-sim.blue {
+            background: linear-gradient(180deg, #2c5d8f 0%, #1f4468 100%);
+            color: #dfefff;
+            text-shadow: 0 0 4px rgba(223,239,255,0.7);
+            border-color: #14293d;
+        }
+        .widget-card.selected {
+            outline: 2px solid #38bdf8;
+            outline-offset: 2px;
+            background: rgba(56, 189, 248, 0.10);
+        }
+        .widget-card.dragging { opacity: .45; transform: scale(.97); }
+        .widget-card { cursor: grab; }
+        .widget-card:active { cursor: grabbing; }
+        .page-tab .tab-edit { display: none; }
+        .page-tab.editing .tab-label { display: none; }
+        .page-tab.editing .tab-edit { display: inline-block; }
+        .page-tab.active { background: #0ea5e9; color: white; }
+        .drop-zone.custom { border-style: dashed; }
+
+        /* Custom-glyph chips: shared by the big simulator and thumbnails */
+        .glyph-chip {
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 0.78em;
+        }
+        /* Tiny 16x2 page thumbnails (ENH 2) */
+        .page-thumb {
+            background: linear-gradient(180deg, #a8c93a 0%, #86b32e 100%);
+            color: #1c2b16;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 5px;
+            line-height: 1.4;
+            letter-spacing: 0.08em;
+            border: 2px solid #23331d;
+            border-radius: 4px;
+            padding: 3px 4px;
+            white-space: pre;
+            overflow: hidden;
+            width: 132px;
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
+        }
+        .page-thumb.blue {
+            background: linear-gradient(180deg, #2c5d8f 0%, #1f4468 100%);
+            color: #dfefff;
+            border-color: #14293d;
+        }
+        .page-thumb.empty { opacity: .45; }
+        .page-thumb-wrap.active .page-thumb { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+        /* Toast stack (ENH 6) */
+        #toast-stack {
+            position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 100;
+            display: flex; flex-direction: column; gap: .5rem;
+        }
+        .toast {
+            min-width: 240px; padding: .75rem 1rem; border-radius: .75rem;
+            color: white; font-weight: 600; font-size: .875rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,.5);
+            animation: toast-in .25s ease-out;
+            transition: opacity .4s ease, transform .4s ease;
+        }
+        .toast.success { background: #059669; }
+        .toast.error   { background: #e11d48; }
+        .toast.info    { background: #0284c7; }
+        .toast.leaving { opacity: 0; transform: translateY(8px); }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateX(24px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+<!-- NAV -->
+<nav class="glass sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <span class="text-2xl">🎨</span>
+        <span class="font-bold text-lg tracking-tight">LCD Page Designer</span>
+    </div>
+    <div class="flex gap-1 sm:gap-2 text-sm font-medium">
+        <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Dashboard</a>
+        <a href="/designer" class="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300">Designer</a>
+        <a href="/logs" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Logs</a>
+        <a href="/settings" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Settings</a>
+    </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <header>
+        <h1 class="text-3xl font-extrabold tracking-tight">Design your 16×2 pages</h1>
+        <p class="text-slate-400 text-sm mt-1">Pick a page tab, choose a widget or author a custom JSON block, then apply it — the physical LCD syncs within a second.</p>
+    </header>
+
+    <!-- PAGE SELECTOR -->
+    <section class="glass rounded-2xl p-5 flex flex-wrap items-center gap-3">
+        <span class="text-sm font-semibold text-slate-300">Page:</span>
+        <div id="page-tabs" class="flex flex-wrap gap-2"></div>
+        <div class="ml-auto flex gap-2">
+            <button id="import-btn" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition">📥 Import JSON</button>
+            <button id="export-btn" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition">📤 Export JSON</button>
+            <button id="add-page-btn" class="px-4 py-1.5 rounded-full bg-sky-500 hover:bg-sky-400 text-white text-sm font-bold transition">+ Add page</button>
+        </div>
+    </section>
+
+    <!-- PAGE THUMBNAILS (ENH 2) -->
+    <section class="glass rounded-2xl p-5">
+        <h2 class="font-bold text-sm text-slate-300 mb-3 uppercase tracking-wider">Page previews <span class="text-slate-500 normal-case font-normal">· live 16×2 miniatures — click to open</span></h2>
+        <div id="thumb-grid" class="flex flex-wrap gap-4"></div>
+    </section>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+        <!-- WIDGET GRID -->
+        <section class="lg:col-span-2">
+            <h2 class="font-bold text-lg mb-3">Widgets for page <span id="current-page-label" class="text-sky-300">1</span></h2>
+            <div id="widget-grid" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+            <!-- CUSTOM JSON BLOCK -->
+            <div class="glass rounded-2xl p-5 mt-6">
+                <h3 class="font-bold mb-2 flex items-center gap-2">🧩 Custom layout JSON <span class="text-xs font-normal text-slate-400">advanced</span></h3>
+                <p class="text-xs text-slate-400 mb-3">Two lines, clipped to 16 chars each on the LCD. Example: <code class="text-sky-300">{"type":"custom","lines":["MY STATION","v2.0 hello"]}</code></p>
+                <textarea id="custom-json" rows="3" class="w-full rounded-xl bg-slate-900/70 border border-slate-700 px-4 py-3 text-sm font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder='{"type":"custom","lines":["LINE 1 TEXT","LINE 2 TEXT"]}'></textarea>
+                <div class="flex items-center gap-3 mt-3">
+                    <button id="apply-custom-btn" class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold transition">Preview custom block</button>
+                    <span id="custom-error" class="text-xs text-rose-400"></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- PREVIEW + ACTIONS -->
+        <section class="space-y-6">
+            <div class="glass rounded-2xl p-6 flex flex-col items-center gap-4">
+                <h2 class="font-bold text-lg self-start">Live LCD simulation</h2>
+                <div id="lcd-sim" class="lcd-sim">...loading</div>
+                <div class="flex gap-2 text-xs">
+                    <button id="theme-green" class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300">Green</button>
+                    <button id="theme-blue" class="px-3 py-1 rounded-full bg-sky-500/20 text-sky-300">Blue</button>
+                </div>
+                <p class="text-xs text-slate-500 text-center">Pixel-accurate 16×2 mirror of the selected widget, rendered from the same render engine as the hardware.</p>
+            </div>
+
+            <div class="glass rounded-2xl p-6 space-y-3">
+                <button id="save-btn" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition">💾 Apply &amp; save to LCD</button>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="clone-btn" class="py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-sm font-bold transition" title="Copy this page's widget to another page">📄 Clone page</button>
+                    <button id="rename-btn" class="py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold transition">✏️ Rename page</button>
+                </div>
+                <button id="reset-btn" class="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold transition">🔄 Reset to default widget</button>
+                <button id="delete-btn" class="w-full py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-bold transition">🗑️ Delete this page</button>
+            </div>
+        </section>
+    </div>
+</main>
+
+<!-- Toast stack (ENH 6) -->
+<div id="toast-stack"></div>
+
+<script>
+const MAX_PAGES = 10;
+const CORE_PAGES = 6;
+const DEFAULT_WIDGETS = { 1:'widget_clock', 2:'widget_indoor', 3:'widget_outdoor',
+                          4:'widget_forecast', 5:'widget_aqi', 6:'widget_moon' };
+
+// Full \x00-\x07 glyph map (ENH 3): matches config.CUSTOM_CHARACTERS order
+const GLYPH_ICONS = ['⏳', '⌛', '🔔', '🙂', '☁️', '☀️', '▮', '🌙'];
+const GLYPH_NAMES = ['hourglass-1', 'hourglass-2', 'alarm bell', 'smile',
+                     'cloud', 'sun', 'load block', 'moon'];
+
+let widgets = [];
+let pageAssignments = {};
+let activePage = 1;
+let selectedWidget = null;      // widget_type string OR raw custom JSON
+let previewLines = [' ', ' '];
+
+// ---- Toasts (ENH 6) --------------------------------------------------------
+function toast(message, kind = 'info', ms = 2600) {
+    const stack = document.getElementById('toast-stack');
+    const el = document.createElement('div');
+    el.className = 'toast ' + kind;
+    el.textContent = message;
+    stack.appendChild(el);
+    setTimeout(() => el.classList.add('leaving'), ms);
+    setTimeout(() => el.remove(), ms + 500);
+}
+
+// ---- Data loading ----------------------------------------------------------
+async function init() {
+    const [wRes, pRes] = await Promise.all([
+        fetch('/api/widgets').then(r => r.json()),
+        fetch('/api/pages').then(r => r.json()),
+    ]);
+    widgets = wRes.widgets || [];
+    pageAssignments = pRes || {};
+    await loadPageMeta();
+    renderTabs();
+    renderThumbs();
+    selectPage(1);
+    setInterval(pollPreview, 1000);
+    pollPreview();
+}
+
+// ---- Tabs (rename via double-click or the Rename button) -------------------
+let pageMeta = {};      // {page_id: {name, widget}} from /api/pages/full
+
+async function loadPageMeta() {
+    try {
+        const res = await fetch('/api/pages/full');
+        const data = await res.json();
+        pageMeta = {};
+        (data.pages || []).forEach(p => pageMeta[p.page_id] = p);
+    } catch (e) { pageMeta = {}; }
+}
+
+function pageName(i) {
+    return (pageMeta[i] && pageMeta[i].name) || String(i);
+}
+
+function pageWidget(i) {
+    return pageAssignments[String(i)] || pageAssignments[i]
+        || (pageMeta[i] && pageMeta[i].widget) || DEFAULT_WIDGETS[i] || null;
+}
+
+function renderTabs() {
+    const wrap = document.getElementById('page-tabs');
+    wrap.innerHTML = '';
+    const top = Math.max(CORE_PAGES, Object.keys(pageAssignments).length, activePage);
+    for (let i = 1; i <= top; i++) {
+        const b = document.createElement('button');
+        b.className = 'page-tab px-4 py-1.5 rounded-full text-sm font-bold bg-slate-700/50 hover:bg-slate-600/60 transition' + (i === activePage ? ' active' : '');
+        b.dataset.page = i;
+        b.title = 'Page ' + i + ' — double-click to rename';
+        b.innerHTML = `<span class="tab-label">${i}: ${pageName(i)}</span>` +
+                      `<input class="tab-edit hidden w-16 bg-slate-900 rounded px-1 text-xs" value="${pageName(i)}">`;
+        b.onclick = (ev) => {
+            if (ev.target.classList.contains('tab-edit')) return;
+            selectPage(i);
+        };
+        b.ondblclick = () => startRename(b, i);
+        wrap.appendChild(b);
+    }
+}
+
+function startRename(tab, pageId) {
+    tab.classList.add('editing');
+    const input = tab.querySelector('.tab-edit');
+    input.classList.remove('hidden');
+    input.focus(); input.select();
+    const commit = async () => {
+        const name = input.value.trim().slice(0, 16) || pageName(pageId);
+        tab.classList.remove('editing');
+        await fetch('/api/rename-page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ page_id: pageId, name }),
+        });
+        await loadPageMeta();
+        renderTabs();
+        renderThumbs();
+    };
+    input.onblur = commit;
+    input.onkeydown = (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') { input.value = pageName(pageId); input.blur(); }
+    };
+}
+
+function selectPage(p) {
+    activePage = p;
+    document.getElementById('current-page-label').textContent = p;
+    selectedWidget = pageWidget(p);
+    renderTabs();
+    renderGrid();
+    renderThumbs();
+    refreshPreviewFromSelection();
+}
+
+// ---- Widget grid (click OR drag onto the LCD simulator) --------------------
+function renderGrid() {
+    const grid = document.getElementById('widget-grid');
+    grid.innerHTML = '';
+    widgets.forEach(w => {
+        const card = document.createElement('div');
+        card.className = 'widget-card glass rounded-2xl p-4 text-left hover:-translate-y-0.5 hover:border-sky-500/40 transition' +
+            (selectedWidget === w.type ? ' selected' : '');
+        card.dataset.type = w.type;
+        card.draggable = true;
+        card.innerHTML = `
+            <div class="flex items-start justify-between">
+                <span class="text-2xl">${w.icon}</span>
+                <span class="quick-add px-2 py-0.5 rounded-md bg-emerald-600/90 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wide transition" title="Instantly apply to page ${activePage}">+ Quick add</span>
+            </div>
+            <div class="font-bold mt-2">${w.title}</div>
+            <div class="text-xs text-slate-400 mt-0.5">${w.desc}</div>
+        `;
+        // Click anywhere on the card = preview only (existing behavior)
+        card.onclick = (ev) => {
+            if (ev.target.closest('.quick-add')) return;   // handled below
+            selectedWidget = w.type;
+            renderGrid();
+            refreshPreviewFromSelection();
+        };
+        // ENH 1: Quick Add = select + save + activate + toast in one action
+        card.querySelector('.quick-add').onclick = async (ev) => {
+            ev.stopPropagation();
+            selectedWidget = w.type;
+            renderGrid();
+            await refreshPreviewFromSelection();
+            await quickAdd(w);
+        };
+        card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/widget', w.type);
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        grid.appendChild(card);
+    });
+}
+
+async function quickAdd(w) {
+    const ok = await persistAssignment(activePage, w.type, false);
+    if (ok) {
+        pageAssignments[activePage] = w.type;
+        renderTabs();
+        renderThumbs();
+        toast(`"${w.title}" added to page ${activePage} — LCD updated`, 'success');
+        await previewWidget(w.type);   // then show live hardware output
+    } else {
+        toast('Quick add failed — see server log', 'error');
+    }
+}
+
+async function persistAssignment(pageId, widgetType, activate) {
+    try {
+        const res = await fetch('/api/save-page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ page_id: pageId, widget_type: widgetType, activate }),
+        });
+        return (await res.json()).status === 'success';
+    } catch (e) { return false; }
+}
+
+// ---- Page thumbnails (ENH 2) ------------------------------------------------
+async function renderThumbs() {
+    const grid = document.getElementById('thumb-grid');
+    grid.innerHTML = '';
+    const top = Math.max(CORE_PAGES, Object.keys(pageAssignments).length, activePage);
+    for (let i = 1; i <= top; i++) {
+        const wrap = document.createElement('button');
+        wrap.className = 'page-thumb-wrap flex flex-col items-center gap-1.5' + (i === activePage ? ' active' : '');
+        const widget = pageWidget(i);
+        const thumb = document.createElement('div');
+        thumb.className = 'page-thumb' + (widget ? '' : ' empty');
+        thumb.dataset.page = i;
+        thumb.textContent = '\n'.repeat(2);   // placeholder until fetched
+        const label = document.createElement('span');
+        label.className = 'text-[10px] text-slate-400 font-semibold';
+        label.textContent = `P${i} · ${pageName(i)}`;
+        wrap.onclick = () => selectPage(i);
+        wrap.appendChild(thumb);
+        wrap.appendChild(label);
+        grid.appendChild(wrap);
+
+        // Fetch the real rendered frame for this page's widget
+        if (widget) {
+            try {
+                const res = await fetch('/api/widgets/preview?type=' + encodeURIComponent(widget));
+                if (res.ok) {
+                    const d = await res.json();
+                    thumb.dataset.l1 = d.line1 || '';
+                    thumb.dataset.l2 = d.line2 || '';
+                    paintThumb(thumb);
+                    continue;
+                }
+            } catch (e) { /* fall through */ }
+        }
+        thumb.dataset.l1 = ''; thumb.dataset.l2 = '';
+        paintThumb(thumb);
+    }
+}
+
+function paintThumb(thumb) {
+    thumb.innerHTML = '';
+    [thumb.dataset.l1 || '', thumb.dataset.l2 || ''].forEach(line => {
+        const row = document.createElement('div');
+        for (const ch of pad16(line).slice(0, 16)) {
+            if (ch >= '\x00' && ch <= '\x07') {
+                const s = document.createElement('span');
+                s.className = 'glyph-chip';
+                s.textContent = GLYPH_ICONS[ch.charCodeAt(0)];
+                row.appendChild(s);
+            } else {
+                row.appendChild(document.createTextNode(ch));
+            }
+        }
+        thumb.appendChild(row);
+    });
+}
+
+// ---- Preview ---------------------------------------------------------------
+async function refreshPreviewFromSelection() {
+    if (!selectedWidget) { previewLines = ['(empty page)', '']; return paint(); }
+    if (selectedWidget.startsWith('{')) {
+        const ok = applyCustomToPreview(selectedWidget);
+        if (ok) paint();
+        return;
+    }
+    await previewWidget(selectedWidget);
+}
+
+async function previewWidget(type) {
+    try {
+        const res = await fetch('/api/widgets/preview?type=' + encodeURIComponent(type));
+        if (!res.ok) throw new Error('preview failed');
+        const data = await res.json();
+        previewLines = [data.line1, data.line2];
+    } catch (e) {
+        previewLines = ['(preview', 'unavailable)'];
+    }
+    paint();
+}
+
+function applyCustomToPreview(jsonText) {
+    try {
+        const data = JSON.parse(jsonText);
+        if (data.type !== 'custom' || !Array.isArray(data.lines)) throw new Error('bad shape');
+        previewLines = [String(data.lines[0] || ''), String(data.lines[1] || '')];
+        document.getElementById('custom-error').textContent = '';
+        return true;
+    } catch (e) {
+        document.getElementById('custom-error').textContent = 'Invalid JSON block';
+        return false;
+    }
+}
+
+// Big simulator paint — full \x00-\x07 glyph support (ENH 3)
+function paint() {
+    const el = document.getElementById('lcd-sim');
+    el.innerHTML = '';
+    [previewLines[0], previewLines[1]].forEach((line, idx) => {
+        const row = document.createElement('div');
+        for (const ch of pad16(line).slice(0, 16)) {
+            const span = document.createElement('span');
+            if (ch >= '\x00' && ch <= '\x07') {
+                const code = ch.charCodeAt(0);
+                span.textContent = GLYPH_ICONS[code];
+                span.className = 'glyph-chip';
+                span.title = 'Custom char \\x0' + code + ' — ' + GLYPH_NAMES[code];
+            } else {
+                span.textContent = ch;
+            }
+            row.appendChild(span);
+        }
+        if (idx === 0) row.appendChild(document.createTextNode('\n'));
+        el.appendChild(row);
+    });
+}
+
+function pad16(s) { return ((s ?? '') + '                ').slice(0, 16); }
+
+// Live hardware mirror (shows whatever the physical LCD is rendering now)
+async function pollPreview() {
+    try {
+        const d = await fetch('/api/data').then(r => r.json());
+        // Only override when the live page == the page being edited
+        if (d.current_page === activePage && !selectedWidget) {
+            previewLines = [d.lcd_line1, d.lcd_line2];
+            paint();
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// ---- Custom block ----------------------------------------------------------
+document.getElementById('apply-custom-btn').onclick = () => {
+    const text = document.getElementById('custom-json').value.trim();
+    if (applyCustomToPreview(text)) selectedWidget = text;
+};
+
+// ---- Actions ----------------------------------------------------------------
+// ENH 6: Apply & Save with confirmation toast + real-time LCD activation
+document.getElementById('save-btn').onclick = async () => {
+    if (!selectedWidget) { toast('Pick a widget or custom block first.', 'error'); return; }
+    const ok = await persistAssignment(activePage, selectedWidget, true);
+    if (ok) {
+        pageAssignments[activePage] = selectedWidget;
+        renderTabs();
+        renderThumbs();
+        toast(`Page ${activePage} saved — LCD switched to it live ✓`, 'success');
+        await refreshPreviewFromSelection();
+    } else {
+        toast('Save failed — check the server log', 'error');
+    }
+};
+
+document.getElementById('reset-btn').onclick = () => {
+    selectedWidget = DEFAULT_WIDGETS[activePage] || 'widget_indoor';
+    renderGrid();
+    refreshPreviewFromSelection();
+    toast('Preview reset to the default widget', 'info');
+};
+
+document.getElementById('delete-btn').onclick = async () => {
+    if (activePage <= CORE_PAGES) { toast('Pages 1-6 are core pages.', 'error'); return; }
+    if (!confirm('Delete page ' + activePage + '?')) return;
+    await fetch('/api/delete-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_id: activePage }),
+    });
+    delete pageAssignments[activePage];
+    delete pageAssignments[String(activePage)];
+    await loadPageMeta();
+    selectPage(Math.min(activePage, CORE_PAGES));
+    toast('Page ' + activePage + ' deleted', 'info');
+};
+
+// ENH 4: Clone Page — copy this page's widget (and name) to a target page
+document.getElementById('clone-btn').onclick = async () => {
+    const widget = pageWidget(activePage);
+    if (!widget) { toast('Nothing to clone — page is empty.', 'error'); return; }
+    // Build a simple picker from the free pages
+    const targets = [];
+    for (let i = 1; i <= MAX_PAGES; i++) {
+        if (i !== activePage) targets.push(i + ': ' + pageName(i));
+    }
+    const pick = prompt('Clone page ' + activePage + ' ("' + pageName(activePage) + '") to which page?\n\n' + targets.join('\n') + '\n\nEnter a page number:');
+    const target = parseInt(pick, 10);
+    if (!pick || isNaN(target) || target < 1 || target > MAX_PAGES || target === activePage) {
+        if (pick !== null) toast('Invalid target page.', 'error');
+        return;
+    }
+    const ok = await persistAssignment(target, widget, false);
+    if (ok) {
+        pageAssignments[target] = widget;
+        // Also copy the tab name (suffix to avoid confusion between the two)
+        await fetch('/api/rename-page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ page_id: target, name: (pageName(activePage) + ' copy').slice(0, 16) }),
+        });
+        await loadPageMeta();
+        renderTabs();
+        renderThumbs();
+        toast(`Page ${activePage} cloned to page ${target} ✓`, 'success');
+    } else {
+        toast('Clone failed — invalid target or server error', 'error');
+    }
+};
+
+// ENH 4: Rename Page button (same flow as double-clicking the tab)
+document.getElementById('rename-btn').onclick = () => {
+    const tabs = document.querySelectorAll('.page-tab');
+    for (const tab of tabs) {
+        if (parseInt(tab.dataset.page, 10) === activePage) { startRename(tab, activePage); return; }
+    }
+};
+
+// ENH 5: Export current layout as JSON (download + clipboard)
+document.getElementById('export-btn').onclick = async () => {
+    await loadPageMeta();
+    const payload = {
+        exported_at: new Date().toISOString(),
+        version: 'designer-layout-1',
+        pages: {}, names: {},
+    };
+    const top = Math.max(CORE_PAGES, Object.keys(pageAssignments).length, activePage);
+    for (let i = 1; i <= top; i++) {
+        const widget = pageWidget(i);
+        if (widget) payload.pages[String(i)] = widget;
+        payload.names[String(i)] = pageName(i);
+    }
+    const text = JSON.stringify(payload, null, 2);
+    try { await navigator.clipboard.writeText(text); } catch (e) { /* clipboard optional */ }
+    const blob = new Blob([text], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'lcd_layout_' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Layout exported — file downloaded & copied to clipboard', 'success');
+};
+
+// ENH 5: Import layout from JSON (file picker or paste)
+document.getElementById('import-btn').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => applyImportedLayout(String(reader.result));
+        reader.readAsText(file);
+    };
+    input.click();
+};
+
+async function applyImportedLayout(jsonText) {
+    let payload;
+    try {
+        payload = JSON.parse(jsonText);
+    } catch (e) { toast('Import failed: file is not valid JSON', 'error'); return; }
+    try {
+        const res = await fetch('/api/import-layout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const out = await res.json();
+        if (out.status === 'success') {
+            for (const id of out.applied) pageAssignments[id] = payload.pages[String(id)];
+            await loadPageMeta();
+            selectPage(activePage);
+            toast(`Imported ${out.applied.length} page(s)` +
+                  (Object.keys(out.errors || {}).length ? ` — ${Object.keys(out.errors).length} skipped` : ''),
+                  'success');
+        } else {
+            toast('Import failed: ' + (Object.values(out.errors || {})[0] || 'nothing valid found'), 'error');
+        }
+    } catch (e) { toast('Import failed — server error', 'error'); }
+}
+
+document.getElementById('add-page-btn').onclick = () => {
+    const next = Math.max(CORE_PAGES, ...Object.keys(pageAssignments).map(Number), activePage) + 1;
+    if (next > MAX_PAGES) { toast('Maximum ' + MAX_PAGES + ' pages.', 'error'); return; }
+    activePage = next;
+    selectedWidget = null;
+    renderTabs();
+    renderGrid();
+    renderThumbs();
+    document.getElementById('current-page-label').textContent = next;
+};
+
+// LCD color themes
+document.getElementById('theme-green').onclick = () => {
+    document.getElementById('lcd-sim').classList.remove('blue');
+    document.querySelectorAll('.page-thumb').forEach(t => t.classList.remove('blue'));
+};
+document.getElementById('theme-blue').onclick = () => {
+    document.getElementById('lcd-sim').classList.add('blue');
+    document.querySelectorAll('.page-thumb').forEach(t => t.classList.add('blue'));
+};
+
+// ---- Drag & drop onto the LCD simulator ------------------------------------
+const sim = document.getElementById('lcd-sim');
+sim.addEventListener('dragover', (e) => { e.preventDefault(); sim.classList.add('blue'); });
+sim.addEventListener('dragleave', () => sim.classList.remove('blue'));
+sim.addEventListener('drop', (e) => {
+    e.preventDefault();
+    sim.classList.remove('blue');
+    const type = e.dataTransfer.getData('text/widget');
+    if (!type) return;
+    selectedWidget = type;
+    renderGrid();
+    previewWidget(type);
+    toast(type + ' dropped — press Apply & Save', 'info');
+});
+
+init();
+</script>
+</body>
+</html>

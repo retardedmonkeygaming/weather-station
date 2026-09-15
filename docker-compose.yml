@@ -1,0 +1,32 @@
+# docker-compose.yml — one-command Weather Station container
+#
+#   docker compose up -d
+#   → dashboard at http://localhost:8000
+#
+# Persistence: the SQLite DB lives in the ./data volume, so history and
+# settings survive container rebuilds. GPIO/Discord are unavailable inside
+# Docker; the app auto-falls back to mock hardware and skips the bot.
+
+services:
+  weatherstation:
+    build: .
+    image: weatherstation:latest
+    container_name: weather-station
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Server
+      WEATHER_HOST: 0.0.0.0
+      WEATHER_PORT: "8000"
+      # Keep the database on the mounted volume
+      WEATHER_DB_PATH: /app/data/weather_history.db
+      # MQTT (optional) — uncomment and point at your broker:
+      # MQTT_BROKER: 192.168.1.50
+      # MQTT_PORT: "1883"
+      # MQTT_TOPIC: weatherstation
+      # MQTT_INTERVAL_S: "60"
+      # Discord bot (optional) — needs a token from the setup wizard:
+      # DISCORD_BOT_TOKEN: your-token-here
+    volumes:
+      - ./data:/app/data

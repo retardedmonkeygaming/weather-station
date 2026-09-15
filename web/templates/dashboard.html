@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Station — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { background: #020617; font-family: 'Inter', system-ui, sans-serif; }
+        @keyframes moonfloat {
+            0%, 100% { transform: translateY(0) rotate(-6deg); }
+            50% { transform: translateY(-6px) rotate(6deg); }
+        }
+        .moon-anim { display: inline-block; animation: moonfloat 4s ease-in-out infinite; }
+        @keyframes pulsebadge { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+        .badge-pulse { animation: pulsebadge 2.4s ease-in-out infinite; }
+        .glass {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+        .lcd-mirror {
+            background: #0e2a12;
+            color: #7dff7d;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 6px rgba(125, 255, 125, 0.6);
+            border: 6px solid #1c3d20;
+            box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.8), 0 0 30px rgba(125, 255, 125, 0.08);
+        }
+        .glow-dot { box-shadow: 0 0 10px 2px currentColor; }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+<!-- NAV -->
+<nav class="glass sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <span class="text-2xl">🌤️</span>
+        <span class="font-bold text-lg tracking-tight">Weather Station</span>
+        <span id="env-badge" class="text-xs px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-300"></span>
+    </div>
+    <div class="flex gap-1 sm:gap-2 text-sm font-medium items-center">
+        <a href="/" class="px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-300">Dashboard</a>
+        <a href="/designer" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Designer</a>
+        <a href="/logs" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Logs</a>
+        <a href="/settings" class="px-3 py-1.5 rounded-lg hover:bg-slate-700/40 transition">Settings</a>
+        <!-- ENH 2: Notification center bell -->
+        <div class="relative">
+            <button id="bell-btn" onclick="toggleBell()"
+                    class="relative px-2.5 py-1.5 rounded-lg hover:bg-slate-700/40 transition text-lg leading-none">
+                🔔
+                <span id="bell-count"
+                      class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">0</span>
+            </button>
+            <div id="bell-panel"
+                 class="hidden absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto glass rounded-2xl shadow-glass z-50">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
+                    <span class="font-bold text-sm">Notifications</span>
+                    <button onclick="clearNotifications()"
+                            class="text-xs text-sky-300 hover:text-sky-200">Clear all</button>
+                </div>
+                <div id="bell-list" class="divide-y divide-slate-800/60"></div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- HEADER ROW -->
+    <header class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight">Live Conditions</h1>
+            <p class="text-slate-400 text-sm mt-1" id="clock-line">—</p>
+        </div>
+        <div class="flex gap-3 text-sm">
+            <span id="wifi-pill" class="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700">WiFi: —</span>
+            <span id="dht-pill" class="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700">DHT11: —</span>
+        </div>
+    </header>
+
+    <!-- METRIC CARDS -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass rounded-2xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Indoor Temp</div>
+            <div class="text-4xl font-extrabold mt-2 text-orange-300" id="metric-indoor-temp">--</div>
+            <div class="text-xs text-slate-400 mt-1" id="metric-trend">trend —</div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Indoor Humidity</div>
+            <div class="text-4xl font-extrabold mt-2 text-sky-300" id="metric-indoor-humid">--</div>
+            <div class="text-xs text-slate-400 mt-1" id="metric-comfort">comfort —</div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Outdoor Temp</div>
+            <div class="text-4xl font-extrabold mt-2 text-emerald-300" id="metric-outdoor-temp">--</div>
+            <div class="text-xs text-slate-400 mt-1" id="metric-weather">—</div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Air Quality (US AQI)</div>
+            <div class="text-4xl font-extrabold mt-2 text-violet-300" id="metric-aqi">--</div>
+            <div class="text-xs text-slate-400 mt-1" id="metric-aqi-status">—</div>
+        </div>
+    </section>
+
+    <!-- CHART + LCD MIRROR -->
+    <section class="grid lg:grid-cols-3 gap-6">
+        <div class="glass rounded-2xl p-6 lg:col-span-2"
+             hx-get="/partials/trend" hx-trigger="every 30s" hx-swap="innerHTML">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="font-bold text-lg">Indoor vs Outdoor Trend
+                    <span class="text-xs font-normal text-slate-500">· HTMX auto-refresh 30s</span></h2>
+                <div class="flex gap-3 text-xs">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-1.5 rounded-full bg-orange-400 inline-block"></span>Indoor °C</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Outdoor °C</span>
+                </div>
+            </div>
+            <canvas id="trend-chart" height="110"></canvas>
+        </div>
+
+        <div class="glass rounded-2xl p-6 flex flex-col items-center justify-center gap-4">
+            <h2 class="font-bold text-lg self-start">LCD Mirror <span class="text-xs font-normal text-slate-400">(16×2)</span></h2>
+            <div class="lcd-mirror rounded-lg px-4 py-3 text-xl leading-relaxed tracking-widest whitespace-pre" id="lcd-mirror">Waiting...</div>
+            <p class="text-xs text-slate-500">Page <span id="lcd-page">1</span> · updates live</p>
+        </div>
+    </section>
+
+    <!-- SECONDARY CARDS -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass rounded-2xl p-6">
+            <h3 class="font-bold mb-4">🌙 Moon</h3>
+            <div class="text-4xl mb-2 moon-anim" id="moon-icon">🌙</div>
+            <p class="text-xl font-bold" id="moon-name">—</p>
+            <p class="text-slate-400 text-sm mt-1">Illumination <span id="moon-illum">—</span></p>
+        </div>
+        <div class="glass rounded-2xl p-6">
+            <h3 class="font-bold mb-4">☀️ UV & Forecast</h3>
+            <p class="text-slate-300 text-sm">UV Now: <span class="font-bold" id="uv-now">—</span></p>
+            <p class="text-slate-300 text-sm">UV Max: <span class="font-bold" id="uv-max">—</span></p>
+            <p class="text-slate-300 text-sm">Today: <span class="font-bold" id="temp-range">—</span></p>
+        </div>
+        <div class="glass rounded-2xl p-6">
+            <h3 class="font-bold mb-4">🤖 System Health</h3>
+            <div class="space-y-1.5 text-sm">
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">CPU Temp</span><span class="font-bold" id="sys-cpu-temp">—</span></p>
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">CPU Load</span><span class="font-bold" id="sys-cpu-usage">—</span></p>
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">RAM</span><span class="font-bold" id="sys-ram">—</span></p>
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">Disk</span><span class="font-bold" id="sys-disk">—</span></p>
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">IP</span><span class="font-bold font-mono text-xs" id="sys-ip">—</span></p>
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">Uptime</span><span class="font-bold" id="sys-uptime">—</span></p>
+                <p class="text-slate-300 flex justify-between"><span class="text-slate-400">WiFi Signal</span><span class="font-bold" id="sys-wifi">—</span></p>
+            </div>
+            <p class="text-[10px] text-slate-600 mt-3">refreshed every 10s · <span id="sys-version"></span></p>
+        </div>
+    </section>
+
+    <!-- RECENT LOGS TABLE -->
+    <section class="glass rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-lg">Recent History</h2>
+            <a href="/logs" class="text-sm text-sky-300 hover:text-sky-200">View all →</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-slate-400 border-b border-slate-700/60">
+                        <th class="px-4 py-2 font-semibold">Timestamp</th>
+                        <th class="px-4 py-2 font-semibold">Indoor °C</th>
+                        <th class="px-4 py-2 font-semibold">Indoor %</th>
+                        <th class="px-4 py-2 font-semibold">Outdoor °C</th>
+                        <th class="px-4 py-2 font-semibold">Outdoor %</th>
+                    </tr>
+                </thead>
+                <tbody id="history-tbody" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<footer class="text-center text-xs text-slate-600 py-6">
+    Raspberry Pi Weather Station · modular edition
+</footer>
+
+<!-- HTMX trend partial: appended target container (swapped content re-renders chart) -->
+<div id="trend-slot" hx-get="/partials/trend" hx-trigger="every 30s" hx-swap="innerHTML" class="hidden"></div>
+
+<script>
+const REFRESH_MS = 5000;
+
+// ---- Trend chart -----------------------------------------------------------
+const ctx = document.getElementById('trend-chart').getContext('2d');
+const trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [
+            {
+                label: 'Indoor °C',
+                data: [],
+                borderColor: '#fb923c',
+                backgroundColor: 'rgba(251,146,60,0.12)',
+                fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2,
+            },
+            {
+                label: 'Outdoor °C',
+                data: [],
+                borderColor: '#34d399',
+                backgroundColor: 'rgba(52,211,153,0.10)',
+                fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2,
+            },
+        ],
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#64748b', maxTicksLimit: 8 }, grid: { color: 'rgba(148,163,184,0.06)' } },
+            y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148,163,184,0.06)' } },
+        },
+    },
+});
+
+async function loadHistory() {
+    try {
+        const res = await fetch('/api/history?limit=200');
+        const { history } = await res.json();
+        trendChart.data.labels = history.map(r => (r.timestamp || '').slice(5, 16));
+        trendChart.data.datasets[0].data = history.map(r => r.in_temp);
+        trendChart.data.datasets[1].data = history.map(r => r.out_temp);
+        trendChart.update('none');
+
+        const tbody = document.getElementById('history-tbody');
+        tbody.innerHTML = history.slice(-10).reverse().map(r => `
+            <tr class="hover:bg-slate-700/40 transition-colors">
+                <td class="px-4 py-2 text-slate-400">${r.timestamp || '—'}</td>
+                <td class="px-4 py-2">${r.in_temp ?? '—'}</td>
+                <td class="px-4 py-2">${r.in_humid ?? '—'}</td>
+                <td class="px-4 py-2">${r.out_temp ?? '—'}</td>
+                <td class="px-4 py-2">${r.out_humid ?? '—'}</td>
+            </tr>`).join('');
+    } catch (e) { /* keep last good chart */ }
+}
+
+// ---- Live data -------------------------------------------------------------
+function setPill(el, ok, okText, badText) {
+    el.textContent = ok ? okText : badText;
+    el.classList.toggle('text-emerald-300', ok);
+    el.classList.toggle('text-rose-300', !ok);
+}
+
+async function loadLiveData() {
+    try {
+        const res = await fetch('/api/data');
+        const d = await res.json();
+
+        document.getElementById('metric-indoor-temp').textContent = d.indoor_temp;
+        document.getElementById('metric-indoor-humid').textContent = d.indoor_humid;
+        document.getElementById('metric-outdoor-temp').textContent = d.outdoor_temp;
+        document.getElementById('metric-aqi').textContent = d.aqi;
+        document.getElementById('metric-comfort').textContent = 'comfort: ' + d.comfort;
+        document.getElementById('metric-weather').textContent = d.weather_text;
+        document.getElementById('metric-aqi-status').textContent = d.aqi_status;
+        document.getElementById('metric-trend').textContent = 'trend: ' + trendFromLcd(d);
+
+        document.getElementById('moon-name').textContent = d.moon_phase;
+        document.getElementById('moon-illum').textContent = d.moon_illumination;
+        document.getElementById('uv-now').textContent = d.uv_current;
+        document.getElementById('uv-max').textContent = d.uv_max;
+        document.getElementById('temp-range').textContent = `${d.outdoor_min} / ${d.outdoor_max}`;
+        document.getElementById('pi-cpu-temp').textContent = d.pi_cpu_temp;
+        document.getElementById('pi-cpu-usage').textContent = d.pi_cpu_usage;
+        document.getElementById('pi-ram').textContent = d.pi_ram_usage;
+
+        document.getElementById('clock-line').textContent =
+            `${d.date} ${d.time}`;
+        document.getElementById('lcd-mirror').textContent =
+            pad16(d.lcd_line1) + '\n' + pad16(d.lcd_line2);
+        document.getElementById('lcd-page').textContent = d.current_page;
+        if (d.guest_active) {
+            document.getElementById('lcd-mirror').style.opacity = '0.45';
+        } else {
+            document.getElementById('lcd-mirror').style.opacity = '1';
+        }
+
+        setPill(document.getElementById('wifi-pill'),
+                d.wifi_status === 'CONNECTED', 'WiFi: online', 'WiFi: offline');
+        setPill(document.getElementById('dht-pill'),
+                d.dht_status === 'ONLINE', 'DHT11: online', 'DHT11: error');
+
+        const badge = document.getElementById('env-badge');
+        const subKeys = Object.keys(d.subsystems || {});
+        badge.textContent = subKeys.length
+            ? `⚠ ${subKeys.length} subsystem(s) recovering`
+            : 'all subsystems healthy';
+        badge.className = 'text-xs px-2 py-0.5 rounded-full ' + (subKeys.length
+            ? 'bg-amber-500/20 text-amber-300'
+            : 'bg-emerald-500/15 text-emerald-300');
+    } catch (e) { /* transient */ }
+}
+
+function pad16(s) { return ((s || '') + '                ').slice(0, 16); }
+
+function trendFromLcd(d) {
+    // trend symbol is embedded on the indoor page line 1 (e.g. "In:23.5^ ...")
+    const l1 = d.lcd_line1 || '';
+    if (l1.includes('^')) return 'rising ↑';
+    if (l1.includes('v')) return 'falling ↓';
+    return 'steady →';
+}
+
+// ---- System health (ENH 1) -------------------------------------------------
+async function loadSystemHealth() {
+    try {
+        const res = await fetch('/api/system');
+        const s = await res.json();
+        document.getElementById('sys-cpu-temp').textContent = s.cpu_temp;
+        document.getElementById('sys-cpu-usage').textContent = s.cpu_usage;
+        document.getElementById('sys-ram').textContent = `${s.ram_used} (${s.ram_percent})`;
+        document.getElementById('sys-disk').textContent = `${s.disk_used} (${s.disk_percent})`;
+        document.getElementById('sys-ip').textContent = s.ip_address;
+        document.getElementById('sys-uptime').textContent = s.uptime;
+        document.getElementById('sys-wifi').textContent = s.wifi_signal;
+        document.getElementById('sys-version').textContent = 'v' + s.version;
+    } catch (e) { /* transient */ }
+}
+
+// ---- Notification center (ENH 2) -------------------------------------------
+const NOTIF_ICONS = { alert: '🌡️', alarm: '⏰', error: '⚠️', info: 'ℹ️' };
+
+function toggleBell() {
+    document.getElementById('bell-panel').classList.toggle('hidden');
+    if (!document.getElementById('bell-panel').classList.contains('hidden'))
+        loadNotifications();
+}
+
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('bell-panel');
+    if (!panel.classList.contains('hidden') && !panel.contains(e.target)
+            && e.target.id !== 'bell-btn' && !e.target.closest('#bell-btn'))
+        panel.classList.add('hidden');
+});
+
+async function loadNotifications() {
+    try {
+        const res = await fetch('/api/notifications');
+        const d = await res.json();
+        const count = d.count || 0;
+        const badge = document.getElementById('bell-count');
+        badge.textContent = count;
+        badge.classList.toggle('hidden', count === 0);
+        document.getElementById('bell-list').innerHTML = count === 0
+            ? '<p class="px-4 py-6 text-center text-slate-500 text-sm">No notifications</p>'
+            : d.notifications.map(n => `
+                <div class="px-4 py-2.5 flex gap-2.5 items-start">
+                    <span class="text-base">${NOTIF_ICONS[n.kind] || '•'}</span>
+                    <div class="min-w-0">
+                        <p class="text-sm text-slate-200">${n.message}</p>
+                        <p class="text-[10px] text-slate-500">${new Date(n.ts * 1000).toLocaleString()}</p>
+                    </div>
+                </div>`).join('');
+    } catch (e) { /* transient */ }
+}
+
+async function clearNotifications() {
+    await fetch('/api/notifications/clear', { method: 'POST' });
+    loadNotifications();
+}
+
+// ---- Boot ------------------------------------------------------------------
+loadLiveData();
+loadHistory();
+loadSystemHealth();
+loadNotifications();
+setInterval(loadLiveData, REFRESH_MS);
+setInterval(loadSystemHealth, 10000);
+setInterval(loadNotifications, 15000);
+// history chart now refreshes via HTMX every 30s; keep a slow fallback:
+setInterval(loadHistory, 120000);
+
+// Animated moon icon per phase
+const MOON_ICONS_GUI = {
+    'New Moon': '🌑', 'Waxing Crescent': '🌒', 'First Quarter': '🌓',
+    'Waxing Gibbous': '🌔', 'Full Moon': '🌕', 'Waning Gibbous': '🌖',
+    'Last Quarter': '🌗', 'Waning Crescent': '🌘',
+};
+const moonObserver = new MutationObserver(() => {
+    const name = document.getElementById('moon-name')?.textContent;
+    if (name && MOON_ICONS_GUI[name])
+        document.getElementById('moon-icon').textContent = MOON_ICONS_GUI[name];
+});
+moonObserver.observe(document.getElementById('moon-name'), { childList: true, characterData: true, subtree: true });
+</script>
+</body>
+</html>

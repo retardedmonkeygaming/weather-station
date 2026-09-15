@@ -1,0 +1,29 @@
+<!-- HTMX partial: polled every 30s from the dashboard -->
+<template id="trend-payload">__TREND_DATA__</template>
+<script>
+(function () {
+    const tpl = document.getElementById('trend-payload');
+    if (!tpl) return;
+    let rows = [];
+    try { rows = JSON.parse(tpl.content.textContent.trim() || '[]'); } catch (e) {}
+
+    if (window.trendChart && rows.length) {
+        window.trendChart.data.labels = rows.map(r => (r.timestamp || '').slice(5, 16));
+        window.trendChart.data.datasets[0].data = rows.map(r => r.in_temp);
+        window.trendChart.data.datasets[1].data = rows.map(r => r.out_temp);
+        window.trendChart.update('none');
+    }
+
+    const tbody = document.getElementById('history-tbody');
+    if (tbody) {
+        tbody.innerHTML = rows.slice(-10).reverse().map(r => `
+            <tr class="hover:bg-slate-700/40 transition-colors">
+                <td class="px-4 py-2 text-slate-400">${r.timestamp || '—'}</td>
+                <td class="px-4 py-2">${r.in_temp ?? '—'}</td>
+                <td class="px-4 py-2">${r.in_humid ?? '—'}</td>
+                <td class="px-4 py-2">${r.out_temp ?? '—'}</td>
+                <td class="px-4 py-2">${r.out_humid ?? '—'}</td>
+            </tr>`).join('');
+    }
+})();
+</script>

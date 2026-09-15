@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Station — First-Time Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background:
+                radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.14), transparent),
+                radial-gradient(1000px 500px at 90% 10%, rgba(168,85,247,0.10), transparent),
+                #020617;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+        input { background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(148,163,184,0.25); }
+        input:focus { outline: 2px solid #0ea5e9; outline-offset: 1px; }
+        .step { display: none; }
+        .step.active { display: block; animation: fadein .25s ease; }
+        @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .dot { width: 10px; height: 10px; border-radius: 9999px; }
+        .dot.active { background: #0ea5e9; box-shadow: 0 0 10px 2px rgba(14,165,233,.6); }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen flex items-center justify-center px-4 py-10">
+
+<main class="w-full max-w-2xl">
+
+    <header class="text-center mb-8">
+        <div class="text-5xl mb-3">🛠️</div>
+        <h1 class="text-3xl font-extrabold tracking-tight">First-Time Setup</h1>
+        <p class="text-slate-400 mt-2 text-sm">Map your hardware pins and optionally connect Discord.
+           Saved to <code class="text-sky-300">.env</code> — takes about a minute.</p>
+    </header>
+
+    <div class="glass rounded-3xl p-8">
+
+        <!-- progress -->
+        <div class="flex items-center justify-center gap-2 mb-8" id="progress">
+            <span class="dot active" data-step="1"></span>
+            <span class="w-8 h-px bg-slate-600"></span>
+            <span class="dot bg-slate-600" data-step="2"></span>
+            <span class="w-8 h-px bg-slate-600"></span>
+            <span class="dot bg-slate-600" data-step="3"></span>
+            <span class="w-8 h-px bg-slate-600"></span>
+            <span class="dot bg-slate-600" data-step="4"></span>
+        </div>
+
+        <form id="setup-form">
+
+            <!-- STEP 1: LCD pins -->
+            <section class="step active" data-step="1">
+                <h2 class="font-bold text-lg mb-1">🖥️ LCD Pins <span class="text-xs text-slate-400 font-normal">(1602A · 4-bit mode · BCM numbering)</span></h2>
+                <p class="text-xs text-slate-500 mb-5">Each pin must be unique. Defaults match the classic wiring diagram.</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <label class="text-sm"><span class="text-slate-400">RS</span>
+                        <input name="LCD_RS" type="number" min="0" max="27" value="22" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">EN</span>
+                        <input name="LCD_EN" type="number" min="0" max="27" value="17" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">D4</span>
+                        <input name="LCD_D4" type="number" min="0" max="27" value="25" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">D5</span>
+                        <input name="LCD_D5" type="number" min="0" max="27" value="24" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">D6</span>
+                        <input name="LCD_D6" type="number" min="0" max="27" value="23" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">D7</span>
+                        <input name="LCD_D7" type="number" min="0" max="27" value="18" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                </div>
+            </section>
+
+            <!-- STEP 2: sensors & actuators -->
+            <section class="step" data-step="2">
+                <h2 class="font-bold text-lg mb-1">🌡️ Sensors & Actuators</h2>
+                <p class="text-xs text-slate-500 mb-5">The DHT11 data line, the physical tap button, and the buzzer.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label class="text-sm"><span class="text-slate-400">DHT11 data pin</span>
+                        <input name="DHT_PIN" type="number" min="0" max="27" value="4" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">Touch button pin</span>
+                        <input name="BUTTON_PIN" type="number" min="0" max="27" value="27" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                    <label class="text-sm"><span class="text-slate-400">Buzzer pin</span>
+                        <input name="BUZZER_PIN" type="number" min="0" max="27" value="2" required
+                               class="mt-1 w-full rounded-xl px-3 py-2"></label>
+                </div>
+            </section>
+
+            <!-- STEP 3: Discord -->
+            <section class="step" data-step="3">
+                <h2 class="font-bold text-lg mb-1">🤖 Discord Bot <span class="text-xs font-normal text-slate-400">(optional but awesome)</span></h2>
+                <p class="text-xs text-slate-500 mb-3">
+                    Paste a bot token to enable <code class="text-sky-300">/weather</code>,
+                    <code class="text-sky-300">/forecast</code>, <code class="text-sky-300">/setpage</code>,
+                    <code class="text-sky-300">/alarm-on</code>/<code class="text-sky-300">/alarm-off</code>,
+                    <code class="text-sky-300">/set-alert</code>, <code class="text-sky-300">/status-embed</code>,
+                    <code class="text-sky-300">/liveupdate</code>, and say “speak the weather” for a
+                    spoken summary. Admin commands respect the role below.
+                </p>
+                <ol class="text-xs text-slate-400 list-decimal ml-5 mb-4 space-y-1">
+                    <li>Open the <a href="https://discord.com/developers/applications" target="_blank" class="text-sky-300 hover:underline">Discord Developer Portal</a> → New Application</li>
+                    <li>Bot tab → Reset Token → copy it here</li>
+                    <li>OAuth2 → check <code>bot</code> + <code>applications.commands</code> → invite to your server</li>
+                </ol>
+                <label class="text-sm block">
+                    <span class="text-slate-400">Bot token</span>
+                    <input name="DISCORD_BOT_TOKEN" type="password" placeholder="MTA5NjQzNjU0NzU4NzQ4NzQ4Nw.G..."
+                           class="mt-1 w-full rounded-xl px-3 py-2 font-mono text-xs">
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <label class="text-sm block">
+                        <span class="text-slate-400">Live-update channel ID <span class="text-[10px]">(optional)</span></span>
+                        <input name="DISCORD_UPDATE_CHANNEL_ID" type="text" placeholder="123456789012345678"
+                               class="mt-1 w-full rounded-xl px-3 py-2 font-mono text-xs">
+                    </label>
+                    <label class="text-sm block">
+                        <span class="text-slate-400">Admin role name <span class="text-[10px]">(optional)</span></span>
+                        <input name="DISCORD_ADMIN_ROLE" type="text" placeholder="Station Admin"
+                               class="mt-1 w-full rounded-xl px-3 py-2">
+                    </label>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">Channel ID: enable Developer Mode in Discord (Settings → Advanced), then right-click a channel → Copy Channel ID. Weather cards are posted there whenever data changes.</p>
+                <p class="text-xs text-slate-500 mt-2">Stored only in your local <code>.env</code> — never synced or logged.</p>
+            </section>
+
+            <!-- STEP 4: review -->
+            <section class="step" data-step="4">
+                <h2 class="font-bold text-lg mb-1">✅ Review & Save</h2>
+                <p class="text-xs text-slate-500 mb-4">The directory structure is created automatically. Pins take effect on next start.</p>
+                <pre id="review" class="text-xs bg-slate-900/70 rounded-xl p-4 leading-relaxed overflow-x-auto text-emerald-300"></pre>
+                <div id="save-result" class="mt-4 text-sm"></div>
+            </section>
+
+            <!-- nav -->
+            <div class="flex items-center justify-between mt-8">
+                <button type="button" id="back-btn"
+                        class="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold transition opacity-0 pointer-events-none">← Back</button>
+                <button type="button" id="next-btn"
+                        class="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-bold transition">Next →</button>
+                <button type="submit" id="save-btn"
+                        class="hidden px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition">💾 Save setup</button>
+            </div>
+        </form>
+    </div>
+
+    <p class="text-center text-xs text-slate-600 mt-6">Raspberry Pi Weather Station v5.0 · setup wizard</p>
+</main>
+
+<script>
+let step = 1;
+const TOTAL = 4;
+const form = document.getElementById('setup-form');
+
+function show(n) {
+    document.querySelectorAll('.step').forEach(s =>
+        s.classList.toggle('active', +s.dataset.step === n));
+    document.querySelectorAll('#progress .dot').forEach(d => {
+        const on = +d.dataset.step <= n;
+        d.classList.toggle('active', +d.dataset.step === n);
+        d.classList.toggle('bg-slate-600', !on);
+    });
+    document.getElementById('back-btn').style.opacity = n === 1 ? '0' : '1';
+    document.getElementById('back-btn').style.pointerEvents = n === 1 ? 'none' : 'auto';
+    document.getElementById('next-btn').classList.toggle('hidden', n === TOTAL);
+    document.getElementById('save-btn').classList.toggle('hidden', n !== TOTAL);
+    if (n === TOTAL) buildReview();
+}
+
+function collect() {
+    const data = {};
+    new FormData(form).forEach((v, k) => data[k] = v);
+    return data;
+}
+
+function buildReview() {
+    const d = collect();
+    const lines = [
+        `LCD  → RS:${d.LCD_RS}  EN:${d.LCD_EN}  D4:${d.LCD_D4}  D5:${d.LCD_D5}  D6:${d.LCD_D6}  D7:${d.LCD_D7}`,
+        `DHT11 data → GPIO ${d.DHT_PIN}`,
+        `Button → GPIO ${d.BUTTON_PIN}    Buzzer → GPIO ${d.BUZZER_PIN}`,
+        `Discord → ${d.DISCORD_BOT_TOKEN ? 'token saved ✓' : 'skipped (can add later)'}`,
+        `Live updates → ${d.DISCORD_UPDATE_CHANNEL_ID ? 'channel ' + d.DISCORD_UPDATE_CHANNEL_ID : 'off'}`,
+        `Admin role → ${d.DISCORD_ADMIN_ROLE || 'administrators only'}`,
+    ];
+    document.getElementById('review').textContent = lines.join('\n');
+}
+
+document.getElementById('next-btn').onclick = () => { if (step < TOTAL) show(++step); };
+document.getElementById('back-btn').onclick = () => { if (step > 1) show(--step); };
+
+form.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        const res = await fetch('/setup/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(collect()),
+        });
+        const out = await res.json();
+        const box = document.getElementById('save-result');
+        if (out.status === 'success') {
+            box.innerHTML = '<span class="text-emerald-300 font-semibold">✓ Saved!</span> ' +
+                'Restart the station to apply: <code class="text-sky-300">python main.py</code>';
+            btn.textContent = 'Saved ✓';
+        } else {
+            box.innerHTML = '<span class="text-rose-400">Validation failed:</span> ' +
+                Object.values(out.errors || {}).join(', ');
+            btn.disabled = false; btn.textContent = '💾 Save setup';
+        }
+    } catch (err) {
+        document.getElementById('save-result').innerHTML =
+            '<span class="text-rose-400">Network error — is the server running?</span>';
+        btn.disabled = false; btn.textContent = '💾 Save setup';
+    }
+};
+</script>
+</body>
+</html>
