@@ -259,6 +259,9 @@ async function loadLiveData() {
         const res = await fetch('/api/data');
         const d = await res.json();
 
+        // ENH 5: expose the active unit for the trend partial (chart/table)
+        window.UNIT = d.unit || 'C';
+
         document.getElementById('metric-indoor-temp').textContent = d.indoor_temp;
         document.getElementById('metric-indoor-humid').textContent = d.indoor_humid;
         document.getElementById('metric-outdoor-temp').textContent = d.outdoor_temp;

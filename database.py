@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import gzip
 import io
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -344,6 +345,58 @@ async def export_all_data_csv() -> str:
     return await export_all_logs_csv()
 
 
+async def archive_old_logs() -> Dict[str, Any]:
+    """ENH 3: gzip-archive weather_logs rows older than the cutoff.
+
+    Rows older than LOG_ARCHIVE_AFTER_DAYS are written as one gzip-compressed
+    JSON-lines file into logs_archive/, then deleted from the live table so
+    the SQLite file stays small and fast (WAL keeps readers unblocked).
+    """
+    result: Dict[str, Any] = {"archived": 0, "archive_file": None,
+                              "compress_logs": False}
+    db = await get_connection()
+    cutoff = (datetime.now(timezone.utc) - timedelta(
+        days=config.LOG_ARCHIVE_AFTER_DAYS)).isoformat()
+    try:
+        async with db.execute(
+            "SELECT id, timestamp, in_temp, in_humid, out_temp, out_humid "
+            "FROM weather_logs WHERE timestamp < ? ORDER BY id ASC",
+            (cutoff,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        if not rows:
+            return result
+
+        config.LOGS_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_path = config.LOGS_ARCHIVE_DIR / f"weather_logs_{stamp}.jsonl.gz"
+        with gzip.open(archive_path, "wt", encoding="utf-8") as gz:
+            for rid, ts, it, ih, ot, oh in rows:
+                gz.write(json.dumps({
+                    "id": rid, "timestamp": ts,
+                    "in_temp": it, "in_humid": ih,
+                    "out_temp": ot, "out_humid": oh,
+                }) + "\n")
+
+        ids = [r[0] for r in rows]
+        async with _write_lock:
+            await db.executemany(
+                "DELETE FROM weather_logs WHERE id = ?",
+                [(i,) for i in ids],
+            )
+            await db.commit()
+
+        result.update({
+            "archived": len(ids),
+            "archive_file": archive_path.name,
+            "compress_logs": True,
+        })
+        log.info("Archived %d log rows -> %s", len(ids), archive_path.name)
+    except Exception:
+        log.exception("Log archiving failed")
+    return result
+
+
 async def clear_all_logs() -> None:
     """Delete every historical row (admin action)."""
     db = await get_connection()
@@ -424,7 +477,9 @@ async def save_runtime_snapshot(state) -> None:
         await save_setting("current_page", state.current_page)
         for key in ("unit", "buzzer", "screen", "auto_scroll", "alarm_on",
                     "alarm_hr", "alarm_min", "api_rate", "log_rate",
-                    "dht_offset_temp", "latitude", "longitude"):
+                    "dht_offset_temp", "latitude", "longitude",
+                    "voice_mode", "guest_mode", "screen_timeout",
+                    "compress_logs", "alert_high", "alert_low"):
             await save_setting(key, state.get_setting(key))
         for page_id, name in state.page_names.items():
             await rename_page(page_id, name)

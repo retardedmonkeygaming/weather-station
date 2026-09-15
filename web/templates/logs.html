@@ -44,6 +44,9 @@
                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition">🗄️ Export All (JSON)</a>
             <a href="/api/export/all?format=csv"
                class="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold transition">🗂️ Export All (CSV)</a>
+            <form action="/api/archive-logs" method="post" onsubmit="event.preventDefault(); fetch('/api/archive-logs',{method:'POST'}).then(r=>r.json()).then(d=>alert(d.archived ? 'Archived '+d.archived+' rows to '+d.archive_file : 'Nothing older than 30 days to archive'));">
+                <button type="submit" class="px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white text-sm font-bold transition">🗜️ Archive old logs</button>
+            </form>
             <form action="/clear-logs" method="post" onsubmit="return confirm('Delete ALL log history? This cannot be undone.');">
                 <button type="submit" class="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-sm font-bold transition">🗑️ Clear database</button>
             </form>

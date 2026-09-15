@@ -135,9 +135,23 @@ def _current_urls(state) -> tuple:
 
 
 async def weather_fetch_loop() -> None:
-    """Forever-loop fetcher; supervised by main.safe_task."""
+    """Forever-loop fetcher; supervised by main.safe_task.
+
+    Edge-case handling (ENH 4):
+        * WiFi drops permanently  — every cycle times out; the loop keeps
+          retrying with its own fast retry cadence instead of holding the
+          full api_rate interval, marks wifi_error so every UI surface
+          shows the offline state, and pushes a notification on the
+          transition. Stale data is kept (stale-but-labeled beats blank).
+        * Occasional failures      — one failed endpoint doesn't wipe the
+          good values from the other; parsing is per-endpoint.
+    """
     state = get_state()
     timeout = aiohttp.ClientTimeout(total=config.HTTP_TIMEOUT_SECONDS)
+
+    # Offline retry cadence (fast probe) vs normal api_rate interval.
+    OFFLINE_RETRY_S = 30
+    consecutive_failures = 0
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
         while True:
@@ -147,11 +161,35 @@ async def weather_fetch_loop() -> None:
             ok_aqi = await _apply_aqi(state, session, aqi_url)
             fetch_failed = not (ok_forecast and ok_aqi)
 
-            if fetch_failed != state.wifi_error:
-                state.wifi_error = fetch_failed
+            if fetch_failed:
+                consecutive_failures += 1
+            else:
+                consecutive_failures = 0
+
+            # Transition handling — notify exactly once per edge, not spam.
+            if fetch_failed and not state.wifi_error:
+                state.wifi_error = True
                 state.mark_page_dirty()
-            elif state.current_page in (3, 4, 5, 6):
+                config.push_notification(
+                    "error",
+                    "WiFi/API unreachable — showing last known values")
+                log.warning("WiFi/API down (consecutive failure #%d)",
+                            consecutive_failures)
+            elif not fetch_failed and state.wifi_error:
+                state.wifi_error = False
+                state.mark_page_dirty()
+                config.push_notification(
+                    "info", "WiFi/API reconnected — live data restored")
+                log.info("WiFi/API recovered after %d failed attempts",
+                         consecutive_failures if fetch_failed else 0)
+                consecutive_failures = 0
+
+            if state.current_page in (3, 4, 5, 6):
                 state.mark_page_dirty()
 
             interval_min = int(state.get_setting("api_rate"))
-            await asyncio.sleep(interval_min * 60)
+            sleep_s = (
+                OFFLINE_RETRY_S if state.wifi_error
+                else max(30, interval_min * 60)
+            )
+            await asyncio.sleep(sleep_s)

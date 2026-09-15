@@ -183,6 +183,29 @@ HTTP_TIMEOUT_SECONDS = 8.0
 # Guest Mode: LCD auto-dims & buzzer silences after this much button inactivity
 GUEST_MODE_TIMEOUT_S = 30 * 60
 
+# Screen Timeout (ENH 6): blank the LCD after this many idle seconds while
+# the screen setting is ON. 0 disables. Overridable per-install via .env and
+# at runtime via the settings DB ("screen_timeout").
+SCREEN_TIMEOUT_S = _env_int("SCREEN_TIMEOUT_S", 30) or 0
+
+# Logging (ENH 1)
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+LOG_FILE = os.environ.get("LOG_FILE", str(_PROJECT_ROOT / "weather_station.log"))
+
+# Web dashboard basic auth (ENH 2). Enabled by default with admin/admin;
+# change WEB_AUTH_USERNAME / WEB_AUTH_PASSWORD in .env or set
+# WEB_AUTH_ENABLED=OFF to disable. /api/health stays open for liveness probes.
+WEB_AUTH_ENABLED = os.environ.get("WEB_AUTH_ENABLED", "ON").strip().upper() in (
+    "ON", "1", "TRUE", "YES",
+)
+WEB_AUTH_USERNAME = os.environ.get("WEB_AUTH_USERNAME", "admin")
+WEB_AUTH_PASSWORD = os.environ.get("WEB_AUTH_PASSWORD", "admin")
+
+# Historical log compression (ENH 3): gzip-archive rows older than this many
+# days into logs_archive/ when the compress_logs setting is ON.
+LOGS_ARCHIVE_DIR = _PROJECT_ROOT / "logs_archive"
+LOG_ARCHIVE_AFTER_DAYS = _env_int("LOG_ARCHIVE_AFTER_DAYS", 30) or 30
+
 # Voice Mode: announce temperature shifts of at least this many degrees C
 VOICE_TEMP_DELTA_C = 2.0
 
@@ -264,6 +287,8 @@ SETTINGS_DEFAULTS: Dict[str, Any] = {
     "guest_mode": "OFF",  # web-only toggle: dim + silence after idle
     "alert_high": BOOT_TEMP_HIGH_THRESHOLD,   # Discord /set-alert + DHT alerts
     "alert_low": BOOT_TEMP_LOW_THRESHOLD,
+    "screen_timeout": 30,  # seconds of idle before LCD blanks (0 = off)
+    "compress_logs": "OFF",  # ON: gzip-archive log rows > 30 days old
 }
 
 # Type coercion map used when loading settings from the DB
@@ -276,6 +301,7 @@ SETTINGS_TYPES: Dict[str, type] = {
     "dht_offset_temp": float,
     "alert_high": float,
     "alert_low": float,
+    "screen_timeout": int,
 }
 
 
@@ -399,6 +425,9 @@ class AppState:
     last_button_press: float = field(default_factory=time.time)
     guest_active: bool = False
     last_spoken_temp: Optional[float] = None
+
+    # Screen Timeout (ENH 6): True while the LCD is blanked on idle
+    screen_blank: bool = False
 
     # Alarm
     alarm_ringing: bool = False

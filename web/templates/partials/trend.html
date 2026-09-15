@@ -1,16 +1,24 @@
 <!-- HTMX partial: polled every 30s from the dashboard -->
 <template id="trend-payload">__TREND_DATA__</template>
-<script>
-(function () {
+<script>(function () {
     const tpl = document.getElementById('trend-payload');
     if (!tpl) return;
     let rows = [];
     try { rows = JSON.parse(tpl.content.textContent.trim() || '[]'); } catch (e) {}
 
+    // ENH 5: unit conversion — DB stores °C; display follows the unit setting.
+    const unit = (window.UNIT || 'C').toUpperCase();
+    const toF = (c) => (c * 9 / 5) + 32;
+    const fmtT = (c) => (c === null || c === undefined)
+        ? '—'
+        : (unit === 'F' ? toF(Number(c)).toFixed(1) : Number(c).toFixed(1));
+
     if (window.trendChart && rows.length) {
         window.trendChart.data.labels = rows.map(r => (r.timestamp || '').slice(5, 16));
-        window.trendChart.data.datasets[0].data = rows.map(r => r.in_temp);
-        window.trendChart.data.datasets[1].data = rows.map(r => r.out_temp);
+        window.trendChart.data.datasets[0].data = rows.map(r => fmtT(r.in_temp));
+        window.trendChart.data.datasets[1].data = rows.map(r => fmtT(r.out_temp));
+        window.trendChart.data.datasets[0].label = 'Indoor °' + unit;
+        window.trendChart.data.datasets[1].label = 'Outdoor °' + unit;
         window.trendChart.update('none');
     }
 
@@ -19,10 +27,10 @@
         tbody.innerHTML = rows.slice(-10).reverse().map(r => `
             <tr class="hover:bg-slate-700/40 transition-colors">
                 <td class="px-4 py-2 text-slate-400">${r.timestamp || '—'}</td>
-                <td class="px-4 py-2">${r.in_temp ?? '—'}</td>
-                <td class="px-4 py-2">${r.in_humid ?? '—'}</td>
-                <td class="px-4 py-2">${r.out_temp ?? '—'}</td>
-                <td class="px-4 py-2">${r.out_humid ?? '—'}</td>
+                <td class="px-4 py-2">${fmtT(r.in_temp)} °${unit}</td>
+                <td class="px-4 py-2">${r.in_humid ?? '—'} %</td>
+                <td class="px-4 py-2">${fmtT(r.out_temp)} °${unit}</td>
+                <td class="px-4 py-2">${r.out_humid ?? '—'} %</td>
             </tr>`).join('');
     }
 })();

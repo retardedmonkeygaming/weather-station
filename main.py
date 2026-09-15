@@ -30,6 +30,7 @@ from hardware.lcd_driver import get_lcd
 from hardware.sensors import (
     ButtonController, buzzer, dht_sensor,
 )
+import logging_setup
 from services import discord_bot
 from services.moon_phase import calculate_moon_phase
 from services.mqtt_client import mqtt_publish_loop
@@ -79,7 +80,13 @@ async def safe_task(coro_func: Callable[[], Awaitable[None]],
 # ---------------------------------------------------------------------------
 
 async def _display_manager() -> None:
-    """Render the current frame whenever state changes (screen-on guard)."""
+    """Render the current frame whenever state changes (screen-on guard).
+
+    ENH 6 Screen Timeout: while the screen setting is ON, the LCD blanks
+    after `screen_timeout` seconds without a button press and stays blank
+    until the next tap. Blank frames still flow through state so the web
+    mirror reflects reality. A timeout of 0 disables the feature.
+    """
     state = get_state()
     lcd = get_lcd()
     last_rendered = ""
@@ -98,6 +105,30 @@ async def _display_manager() -> None:
         if screen_was_off:
             screen_was_off = False
             state.mark_page_dirty()
+
+        # --- Screen Timeout (ENH 6) -------------------------------------
+        try:
+            timeout_s = int(state.get_setting("screen_timeout"))
+        except (TypeError, ValueError):
+            timeout_s = config.SCREEN_TIMEOUT_S
+        if timeout_s > 0:
+            idle = time.time() - state.last_button_press
+            if idle >= timeout_s and not state.screen_blank:
+                state.screen_blank = True
+                await lcd.clear()
+                last_rendered = ""
+                state.last_lcd_rendered_text = ["", ""]
+                log.debug("Screen timeout after %ss idle", timeout_s)
+                await asyncio.sleep(0.2)
+                continue
+            if idle < timeout_s and state.screen_blank:
+                # Any tap resets last_button_press; wake the screen.
+                state.screen_blank = False
+                state.mark_page_dirty()
+
+        if state.screen_blank:
+            await asyncio.sleep(0.2)
+            continue
 
         line1, line2 = build_frame(state)
 
@@ -258,6 +289,8 @@ async def hardware_boot_sequence() -> None:
             state.dht_error = True
     except Exception:
         state.dht_error = True
+    # ENH 4: a missing sensor at boot must not kill the run — the DHT11
+    # Reader task keeps probing and self-heals when it is plugged back in.
 
     # Network probe (one-shot)
     state.wifi_error = not await _probe_network()
@@ -392,6 +425,9 @@ async def main() -> None:
     global button_controller
 
     state = get_state()
+
+    # ENH 1: rotating-file logging before anything else runs.
+    logging_setup.setup_logging()
 
     # First-run: make sure the package layout exists and flag the wizard.
     # (The web UI redirects to /setup; pins take effect on next start.)

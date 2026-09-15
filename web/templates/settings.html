@@ -152,6 +152,22 @@
                     <option value="OFF" {{ sel_guest_OFF }}>OFF</option>
                 </select>
             </label>
+            <!-- ENH 6: Screen Timeout -->
+            <label><span class="text-slate-400">Screen timeout <span class="text-[10px] text-sky-400">(ENH 6)</span></span>
+                <select name="screen_timeout" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="0" {{ sel_timeout_0 }}>Never blank</option>
+                    <option value="30" {{ sel_timeout_30 }}>30 s idle</option>
+                    <option value="60" {{ sel_timeout_60 }}>60 s idle</option>
+                    <option value="300" {{ sel_timeout_300 }}>5 min idle</option>
+                </select>
+            </label>
+            <!-- ENH 3: log compression -->
+            <label><span class="text-slate-400">Log compression <span class="text-[10px] text-sky-400">(ENH 3)</span></span>
+                <select name="compress_logs" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ON" {{ sel_compress_ON }}>ON — gzip rows &gt; 30 days</option>
+                    <option value="OFF" {{ sel_compress_OFF }}>OFF</option>
+                </select>
+            </label>
             <div class="sm:col-span-2 text-xs text-amber-400" id="voice-hint">{{ voice_backend_hint }}</div>
             <div class="sm:col-span-2">
                 <button type="submit" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold transition">Save settings</button>

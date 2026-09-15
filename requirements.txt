@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # SkyCast Weather Station - Requirements
 # Compatible with Python 3.9+
 

@@ -134,7 +134,15 @@ class DHT11Sensor:
     # -- main polling loop --------------------------------------------------
 
     async def polling_loop(self) -> None:
-        """Forever-loop DHT11 poller; supervised by main.safe_task."""
+        """Forever-loop DHT11 poller; supervised by main.safe_task.
+
+        ENH 4 (sensor unplugged while running): failures never propagate —
+        the adafruit driver commonly raises RuntimeError('DHT returned
+        none') or TimeoutError when the data line goes dead. After 10
+        consecutive misses the sensor is marked OFFLINE (LCD alert frame,
+        buzzer, notification) while the loop keeps probing so the station
+        self-heals the moment the sensor is reconnected.
+        """
         state = get_state()
         failed_attempts = 0
 
@@ -143,12 +151,19 @@ class DHT11Sensor:
                 temp, humid = await self.read_once()
                 if temp is not None and humid is not None:
                     self._ingest_reading(state, temp, humid)
+                    if failed_attempts >= 10:
+                        # Recovered after being offline (ENH 4)
+                        config.push_notification(
+                            "info", "DHT11 reconnected — sensor data restored")
                     failed_attempts = 0
                     if state.dht_error:
                         state.dht_error = False
                         state.mark_page_dirty()
                 else:
                     failed_attempts += 1
+            except RuntimeError:
+                # Typical pulse-timing failure: missing sensor or flaky wire
+                failed_attempts += 1
             except Exception:
                 failed_attempts += 1
 
@@ -156,6 +171,13 @@ class DHT11Sensor:
                 state.dht_error = True
                 state.mark_page_dirty()
                 self._buzzer.rapid_error_beep()
+                config.push_notification(
+                    "error",
+                    "DHT11 offline — check the data cable "
+                    "(auto-recovers when reconnected)")
+                log.warning(
+                    "DHT11 offline after %d consecutive failed reads",
+                    failed_attempts)
 
             await asyncio.sleep(3)
 

@@ -8,9 +8,11 @@ UI:      / (dashboard), /designer, /logs, /settings + POST actions
 
 from __future__ import annotations
 
+import base64
 import json
 import asyncio
 import logging
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -44,10 +46,59 @@ def _load_template(name: str) -> str:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Raspberry Pi Weather Station")
+    _register_auth_middleware(app)
     _register_setup_routes(app)
     _register_api_routes(app)
     _register_ui_routes(app)
     return app
+
+
+# ---------------------------------------------------------------------------
+# Basic authentication (ENH 2)
+# ---------------------------------------------------------------------------
+
+def _register_auth_middleware(app: FastAPI) -> None:
+    """Simple username/password gate for every route except /api/health.
+
+    Credentials come from .env (WEB_AUTH_USERNAME / WEB_AUTH_PASSWORD),
+    defaulting to admin/admin on first run. /api/health stays open so
+    liveness probes (Docker healthcheck, uptime monitors) keep working.
+    Comparison uses secrets.compare_digest (timing-safe).
+    """
+
+    @app.middleware("http")
+    async def basic_auth_middleware(request: Request, call_next):
+        if not config.WEB_AUTH_ENABLED:
+            return await call_next(request)
+        if request.url.path == "/api/health":
+            return await call_next(request)
+
+        header = request.headers.get("Authorization", "")
+        username = password = ""
+        if header.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(header[6:]).decode("utf-8")
+                username, _, password = decoded.partition(":")
+            except Exception:
+                pass
+
+        user_ok = secrets.compare_digest(
+            username, config.WEB_AUTH_USERNAME)
+        pass_ok = secrets.compare_digest(
+            password, config.WEB_AUTH_PASSWORD)
+        if user_ok and pass_ok:
+            return await call_next(request)
+
+        return HTMLResponse(
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Weather Station"'},
+            content=("<html><body style='background:#020617;color:#e2e8f0;"
+                     "font-family:sans-serif;display:grid;place-items:center;"
+                     "height:100vh'><div><h1>401 — Unauthorized</h1>"
+                     "<p style='color:#94a3b8'>Weather Station requires "
+                     "sign-in (default admin/admin — see .env.example).</p>"
+                     "</div></body></html>"),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +199,7 @@ def _register_api_routes(app: FastAPI) -> None:
             "lcd_mock": get_lcd_mock_flag(),
             "guest_active": state.guest_active,
             "voice_mode": state.get_setting("voice_mode"),
+            "unit": unit,
             "time": datetime.now().strftime("%H:%M:%S"),
             "date": datetime.now().strftime("%Y-%m-%d"),
             "subsystems": config.subsystem_status(),
@@ -377,6 +429,17 @@ def _register_api_routes(app: FastAPI) -> None:
         config.clear_notifications()
         return JSONResponse({"status": "cleared"})
 
+    @app.post("/api/archive-logs")
+    async def archive_logs_now():
+        """ENH 3: manual gzip-archive run for log rows past the cutoff."""
+        result = await database.archive_old_logs()
+        if result["archived"]:
+            config.push_notification(
+                "info",
+                f"Archived {result['archived']} log rows to "
+                f"{result['archive_file']}")
+        return JSONResponse(result)
+
     @app.post("/api/mqtt/publish")
     async def mqtt_publish_test():
         """ENH 3: one-shot publish for testing the broker connection."""
@@ -529,6 +592,8 @@ def _register_ui_routes(app: FastAPI) -> None:
         log_rate: int = Form(...),
         voice_mode: str = Form("OFF"),
         guest_mode: str = Form("OFF"),
+        screen_timeout: int = Form(30),
+        compress_logs: str = Form("OFF"),
     ):
         state = get_state()
         for key, value in {
@@ -537,6 +602,8 @@ def _register_ui_routes(app: FastAPI) -> None:
             "alarm_hr": alarm_hr, "alarm_min": alarm_min,
             "api_rate": api_rate, "log_rate": log_rate,
             "voice_mode": voice_mode, "guest_mode": guest_mode,
+            "screen_timeout": max(0, min(int(screen_timeout), 3600)),
+            "compress_logs": compress_logs,
         }.items():
             state.set_setting(key, value)
             await database.save_setting(key, value)
@@ -606,6 +673,8 @@ def _render_settings(html: str, state) -> str:
     log_rate = int(state.get_setting("log_rate"))
     voice_mode = state.get_setting("voice_mode")
     guest_mode = state.get_setting("guest_mode")
+    screen_timeout = int(state.get_setting("screen_timeout"))
+    compress_logs = state.get_setting("compress_logs")
     raw = state.indoor_temp_raw
     offset = float(state.get_setting("dht_offset_temp") or 0.0)
     calibrated = (round(raw + offset, 1) if raw is not None else None)
@@ -647,6 +716,13 @@ def _render_settings(html: str, state) -> str:
         "{{ sel_guest_ON }}": sel(guest_mode == "ON"),
         "{{ sel_guest_OFF }}": sel(guest_mode == "OFF"),
         "{{ voice_backend_hint }}": _voice_backend_hint(),
+        "{{ screen_timeout }}": str(screen_timeout),
+        "{{ sel_timeout_0 }}": sel(screen_timeout == 0),
+        "{{ sel_timeout_30 }}": sel(screen_timeout == 30),
+        "{{ sel_timeout_60 }}": sel(screen_timeout == 60),
+        "{{ sel_timeout_300 }}": sel(screen_timeout == 300),
+        "{{ sel_compress_ON }}": sel(compress_logs == "ON"),
+        "{{ sel_compress_OFF }}": sel(compress_logs != "ON"),
     }
     for token, value in replacements.items():
         html = html.replace(token, value)
