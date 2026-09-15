@@ -42,7 +42,7 @@ typing-extensions>=4.9.0,<5.0.0
 # pytest-asyncio>=0.21.0
 # black>=23.12.0
 # ruff>=0.1.0
-=======
+
 # Web / async stack
 fastapi>=0.110
 uvicorn>=0.29
@@ -61,4 +61,4 @@ adafruit-circuitpython-charlcd>=4.6
 adafruit-circuitpython-dht>=4.0
 adafruit-blinka>=8.0
 gpiozero>=2.0
->>>>>>> 874a572 (Add new templates for logs, settings, and setup; implement trend data partial)
+

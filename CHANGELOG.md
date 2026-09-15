@@ -3,6 +3,43 @@
 All notable changes to the Raspberry Pi Weather Station.
 Format: [version] — date — highlights.
 
+## [5.2] — 2026-09-15 — Final Enhancement Pack
+
+### Added
+- **Proper logging** (`logging_setup.py`): console handler honoring
+  `LOG_LEVEL` (DEBUG/INFO/WARNING/ERROR) + rotating file handler
+  (`weather_station.log`, 5 MB × 5 backups, always DEBUG) configured once
+  at boot before any subsystem starts.
+- **Basic auth**: every route except `/api/health` requires
+  `WEB_AUTH_USERNAME` / `WEB_AUTH_PASSWORD` (default admin/admin,
+  change in `.env`; `WEB_AUTH_ENABLED=OFF` to disable). Timing-safe
+  comparison, 401 page with sign-in hint, healthcheck stays open for
+  Docker/uptime probes.
+- **Data compression** (Settings toggle + `POST /api/archive-logs`):
+  gzip-archives `weather_logs` rows older than
+  `LOG_ARCHIVE_AFTER_DAYS` (30) into `logs_archive/*.jsonl.gz`, then
+  deletes them from the live WAL-backed table. Export endpoints still
+  cover everything that remains live.
+- **Edge-case handling**: DHT11 unplugged mid-run → 10-strike OFFLINE
+  state (LCD alert, buzzer, notification) with continuous probing and
+  self-heal + "reconnected" notification on recovery; permanent WiFi
+  loss → 30s fast-retry cadence instead of full api_rate wait,
+  transition notifications (down/reconnected), stale data kept and
+  labeled. Boot never blocks on either condition (desktop gate also
+  clears wifi_error).
+- **Unit conversion everywhere**: the dashboard chart legend, table
+  headers, and the HTMX trend partial convert stored °C to the active
+  unit (F/C) client-side; LCD and all render widgets already honored
+  the unit setting.
+- **Screen Timeout** (Settings toggle, default 30s): LCD blanks after
+  `screen_timeout` seconds without a button press while Screen is ON;
+  any tap wakes it instantly. 0 disables. Mirrored in the web LCD
+  mirror and persisted in the runtime snapshot.
+
+### Changed
+- Version bumped to 5.2; settings snapshot now persists voice/guest/
+  screen-timeout/compression/alert thresholds across restarts.
+
 ## [5.1] — 2026-09-15 — Enhancement Pack 1
 
 ### Added (Discord Bot)

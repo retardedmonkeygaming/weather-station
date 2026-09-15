@@ -116,8 +116,8 @@
                 <h2 class="font-bold text-lg">Indoor vs Outdoor Trend
                     <span class="text-xs font-normal text-slate-500">· HTMX auto-refresh 30s</span></h2>
                 <div class="flex gap-3 text-xs">
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-1.5 rounded-full bg-orange-400 inline-block"></span>Indoor °C</span>
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Outdoor °C</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-1.5 rounded-full bg-orange-400 inline-block"></span><span id="legend-indoor">Indoor °C</span></span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-1.5 rounded-full bg-emerald-400 inline-block"></span><span id="legend-outdoor">Outdoor °C</span></span>
                 </div>
             </div>
             <canvas id="trend-chart" height="110"></canvas>
@@ -170,9 +170,9 @@
                 <thead>
                     <tr class="text-left text-slate-400 border-b border-slate-700/60">
                         <th class="px-4 py-2 font-semibold">Timestamp</th>
-                        <th class="px-4 py-2 font-semibold">Indoor °C</th>
+                        <th class="px-4 py-2 font-semibold" id="th-in-temp">Indoor °C</th>
                         <th class="px-4 py-2 font-semibold">Indoor %</th>
-                        <th class="px-4 py-2 font-semibold">Outdoor °C</th>
+                        <th class="px-4 py-2 font-semibold" id="th-out-temp">Outdoor °C</th>
                         <th class="px-4 py-2 font-semibold">Outdoor %</th>
                     </tr>
                 </thead>
@@ -261,6 +261,12 @@ async function loadLiveData() {
 
         // ENH 5: expose the active unit for the trend partial (chart/table)
         window.UNIT = d.unit || 'C';
+        document.getElementById('legend-indoor').textContent = 'Indoor °' + window.UNIT;
+        document.getElementById('legend-outdoor').textContent = 'Outdoor °' + window.UNIT;
+        const thIn = document.getElementById('th-in-temp');
+        const thOut = document.getElementById('th-out-temp');
+        if (thIn) thIn.textContent = 'Indoor °' + window.UNIT;
+        if (thOut) thOut.textContent = 'Outdoor °' + window.UNIT;
 
         document.getElementById('metric-indoor-temp').textContent = d.indoor_temp;
         document.getElementById('metric-indoor-humid').textContent = d.indoor_humid;

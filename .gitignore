@@ -39,3 +39,47 @@ Thumbs.db
 data/
 weather_history.db*
 >>>>>>> 874a572 (Add new templates for logs, settings, and setup; implement trend data partial)
+<<<<<<< HEAD
+Nothing should be ignored in this case, as only a source code file (`weather_station/hardware/drivers.py`) was modified and there are no build artifacts, dependencies, or temporary files in the changes.
+=======
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Build/dist
+dist/
+build/
+.coverage
+coverage/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+# Docker data volume & local DB artifacts
+data/
+weather_history.db*
+>>>>>>> 874a572 (Add new templates for logs, settings, and setup; implement trend data partial)
+
+logs_archive/
+weather_station.log*

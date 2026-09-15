@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 # Version
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "5.1"
+APP_VERSION = "5.2"
 
 # ---------------------------------------------------------------------------
 # .env loading (tiny dependency-free parser, called once at import)
