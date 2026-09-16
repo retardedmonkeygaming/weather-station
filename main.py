@@ -35,12 +35,26 @@ if str(_PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(_PROJECT_DIR))
 
 _REQUIRED_PKGS = ("hardware", "services", "utils", "web")
+_REQUIRED_FILES = (
+    # root modules
+    "config.py", "config_io.py", "database.py", "logging_setup.py",
+    # package modules the app imports directly
+    "hardware/lcd_driver.py", "hardware/sensors.py",
+    "services/render.py", "services/weather_api.py", "services/moon_phase.py",
+    "services/discord_bot.py", "services/mqtt_client.py", "services/voice.py",
+    "services/system_health.py",
+    "utils/formatting.py",
+    "web/routes.py",
+)
+_REQUIRED_DIRS = ("web/templates",)
 
 
 def _preflight_project_layout() -> None:
     """Fail fast — with a precise, fixable message — when the checkout on
-    disk is incomplete (a package directory or its __init__.py is missing),
-    instead of dying later with a bare ModuleNotFoundError."""
+    disk is incomplete: a package directory, a required module file, or a
+    template directory is missing (typical of a partial copy/sync or an
+    interrupted pull), instead of dying later with a bare
+    ModuleNotFoundError or a Jinja TemplateNotFound."""
     try:
         names = sorted(p.name for p in _PROJECT_DIR.iterdir())
     except OSError as exc:
@@ -68,6 +82,32 @@ def _preflight_project_layout() -> None:
             raise SystemExit(1)
     if missing_inits and not missing_dirs:
         return
+
+    missing_files = [f for f in _REQUIRED_FILES
+                     if not (_PROJECT_DIR / f).is_file()]
+    missing_tpl = [d for d in _REQUIRED_DIRS
+                   if not (_PROJECT_DIR / d).is_dir()]
+
+    if missing_files or missing_tpl:
+        print("=" * 64, file=sys.stderr)
+        print("FATAL: project checkout is incomplete — cannot start.",
+              file=sys.stderr)
+        print(f"  main.py location : {_PROJECT_DIR / 'main.py'}")
+        if missing_files:
+            print("  missing files    : " + ", ".join(missing_files))
+        if missing_tpl:
+            print("  missing dirs     : " + ", ".join(missing_tpl))
+        print(f"  directory holds  : {names}")
+        print()
+        print("Fix on the Pi:")
+        print(f"  cd {_PROJECT_DIR}")
+        print("  git status                  # mid-merge / conflicts?")
+        print("  git log --oneline -1        # is this the latest commit?")
+        print("  git fetch origin && git reset --hard origin/main   # discards local edits (.env survives)")
+        print("  # or re-copy the FULL project folder, then:")
+        print("  ls hardware services utils web   # all four must exist")
+        print("=" * 64, file=sys.stderr)
+        raise SystemExit(1)
 
     if missing_dirs:
         print("=" * 64, file=sys.stderr)
