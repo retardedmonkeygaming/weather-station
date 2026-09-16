@@ -34,6 +34,61 @@ _PROJECT_DIR = Path(__file__).resolve().parent
 if str(_PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(_PROJECT_DIR))
 
+_REQUIRED_PKGS = ("hardware", "services", "utils", "web")
+
+
+def _preflight_project_layout() -> None:
+    """Fail fast — with a precise, fixable message — when the checkout on
+    disk is incomplete (a package directory or its __init__.py is missing),
+    instead of dying later with a bare ModuleNotFoundError."""
+    try:
+        names = sorted(p.name for p in _PROJECT_DIR.iterdir())
+    except OSError as exc:
+        print(f"FATAL: cannot list {_PROJECT_DIR}: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+    missing_dirs: List[str] = []
+    missing_inits: List[str] = []
+    for pkg in _REQUIRED_PKGS:
+        pkg_path = _PROJECT_DIR / pkg
+        if not pkg_path.is_dir():
+            missing_dirs.append(pkg)
+        elif not (pkg_path / "__init__.py").is_file():
+            missing_inits.append(pkg)
+
+    # Benign auto-repair: an empty __init__.py restores a package whose
+    # marker file was dropped by an incomplete sync/copy.
+    for pkg in missing_inits:
+        try:
+            (_PROJECT_DIR / pkg / "__init__.py").write_text("", encoding="utf-8")
+            print(f"[preflight] recreated missing {pkg}/__init__.py", file=sys.stderr)
+        except OSError as exc:
+            print(f"FATAL: {pkg}/__init__.py is missing and could not be "
+                  f"created: {exc}", file=sys.stderr)
+            raise SystemExit(1)
+    if missing_inits and not missing_dirs:
+        return
+
+    if missing_dirs:
+        print("=" * 64, file=sys.stderr)
+        print("FATAL: project checkout is incomplete — cannot start.", file=sys.stderr)
+        print(f"  main.py location : {_PROJECT_DIR / 'main.py'}")
+        print(f"  missing packages : {', '.join(missing_dirs)}")
+        print(f"  directory holds  : {names}")
+        print(f"  sys.path head    : {sys.path[:3]}")
+        print()
+        print("Fix on the Pi:")
+        print(f"  cd {_PROJECT_DIR}")
+        print("  git status                  # mid-merge / conflicts?")
+        print("  git log --oneline -1        # is this the latest commit?")
+        print("  git fetch origin && git reset --hard origin/main   # discards local edits")
+        print("  # or re-clone fresh:  git clone <repo-url> weather-station-new")
+        print("=" * 64, file=sys.stderr)
+        raise SystemExit(1)
+
+
+_preflight_project_layout()
+
 import asyncio
 import logging
 import time
