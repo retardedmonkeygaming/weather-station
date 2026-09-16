@@ -17,9 +17,25 @@ Supervisor:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# sys.path bootstrap — MUST run before any project import.
+#
+# Under `sudo`, `python3 -P/-I`, PYTHONSAFEPATH=1, or systemd with a sanitized
+# environment, the script's own directory is NOT added to sys.path, so the
+# sibling packages (hardware, services, utils, web) fail with
+# "ModuleNotFoundError: No module named 'hardware'". Make the project root
+# importable explicitly and idempotently, regardless of how we were launched.
+# ---------------------------------------------------------------------------
+
+_PROJECT_DIR = Path(__file__).resolve().parent
+if str(_PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_DIR))
+
 import asyncio
 import logging
-import sys
 import time
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List
