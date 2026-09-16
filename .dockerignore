@@ -1,0 +1,48 @@
+# Keep the Docker build context minimal (faster builds, smaller images)
+
+# Version control & CI
+.git
+.gitignore
+.gitattributes
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets & local config — the container gets its own env
+.env
+.env.local
+.env.example
+
+# Runtime artifacts (mounted as volumes instead)
+data/
+logs_archive/
+*.log
+weather_station.log*
+weather_history.db*
+weather_history_dev.db*
+
+# Docs & meta (not needed inside the image)
+CHANGELOG.md
+README.md
+LICENSE
+.freebuff/
+
+# Python build/cache artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

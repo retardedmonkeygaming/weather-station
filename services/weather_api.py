@@ -155,6 +155,16 @@ async def weather_fetch_loop() -> None:
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
         while True:
+            # Local Storage Only Mode: zero outbound API calls. Outdoor/AQI
+            # values keep their last known reading; the web UI shows the
+            # local-mode banner and disables the API-driven fields.
+            if config.is_local_mode(state):
+                if state.wifi_error:
+                    state.wifi_error = False
+                    state.mark_page_dirty()
+                await asyncio.sleep(30)
+                continue
+
             forecast_url, aqi_url = _current_urls(state)
 
             ok_forecast = await _apply_forecast(state, session, forecast_url)

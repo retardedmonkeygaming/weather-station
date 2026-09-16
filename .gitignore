@@ -1,85 +1,45 @@
-<<<<<<< HEAD
-Nothing should be ignored in this case, as only a source code file (`weather_station/hardware/drivers.py`) was modified and there are no build artifacts, dependencies, or temporary files in the changes.
-=======
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
 
-# Dependencies
+# Virtual environments
 .venv/
 venv/
 env/
+
+# Secrets & local config (created by the setup wizard)
 .env
 .env.local
-.env.*
 
-# Logs
-*.log
-
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# Build/dist
-dist/
-build/
-.coverage
-coverage/
-htmlcov/
-
-# OS
-.DS_Store
-Thumbs.db
-# Docker data volume & local DB artifacts
+# Databases & runtime state
+weather_history.db
+weather_history.db-shm
+weather_history.db-wal
+weather_history_dev.db*
 data/
-weather_history.db*
->>>>>>> 874a572 (Add new templates for logs, settings, and setup; implement trend data partial)
-<<<<<<< HEAD
-Nothing should be ignored in this case, as only a source code file (`weather_station/hardware/drivers.py`) was modified and there are no build artifacts, dependencies, or temporary files in the changes.
-=======
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
 
-# Dependencies
-.venv/
-venv/
-env/
-.env
-.env.local
-.env.*
-
-# Logs
+# Logs & archives
 *.log
-
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# Build/dist
-dist/
-build/
-.coverage
-coverage/
-htmlcov/
-
-# OS
-.DS_Store
-Thumbs.db
-# Docker data volume & local DB artifacts
-data/
-weather_history.db*
->>>>>>> 874a572 (Add new templates for logs, settings, and setup; implement trend data partial)
-
-logs_archive/
 weather_station.log*
+logs_archive/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Build / dist / coverage
+dist/
+build/
+.coverage
+coverage/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db

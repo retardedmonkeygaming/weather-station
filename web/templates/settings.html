@@ -38,6 +38,47 @@
 
 <main class="max-w-3xl mx-auto px-6 py-8 space-y-6">
 
+    <!-- HARDWARE PINS (post-setup reconfiguration) -->
+    <section class="glass rounded-2xl p-6">
+        <h2 class="font-bold text-lg mb-1">🔌 Hardware Pins</h2>
+        <p class="text-xs text-slate-500 mb-4">Change pin numbers after setup —
+            same validation as the wizard. Takes effect after restarting the station.</p>
+        <form id="pin-form" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+            <label><span class="text-slate-400">LCD RS</span>
+                <input name="LCD_RS" type="number" min="0" max="27" value="{{ pin_LCD_RS }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">LCD EN</span>
+                <input name="LCD_EN" type="number" min="0" max="27" value="{{ pin_LCD_EN }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">LCD D4</span>
+                <input name="LCD_D4" type="number" min="0" max="27" value="{{ pin_LCD_D4 }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">LCD D5</span>
+                <input name="LCD_D5" type="number" min="0" max="27" value="{{ pin_LCD_D5 }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">LCD D6</span>
+                <input name="LCD_D6" type="number" min="0" max="27" value="{{ pin_LCD_D6 }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">LCD D7</span>
+                <input name="LCD_D7" type="number" min="0" max="27" value="{{ pin_LCD_D7 }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">DHT11 data</span>
+                <input name="DHT_PIN" type="number" min="0" max="27" value="{{ pin_DHT }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">Button</span>
+                <input name="BUTTON_PIN" type="number" min="0" max="27" value="{{ pin_BUTTON }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+            <label><span class="text-slate-400">Buzzer</span>
+                <input name="BUZZER_PIN" type="number" min="0" max="27" value="{{ pin_BUZZER }}" required
+                       class="mt-1 w-full rounded-xl px-3 py-2"></label>
+        </form>
+        <div class="mt-3 flex items-center gap-3">
+            <button onclick="savePins()"
+                    class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold transition">Save pins</button>
+            <span id="pin-result" class="text-sm text-slate-400"></span>
+        </div>
+    </section>
+
     <!-- LOCATION -->
     <section class="glass rounded-2xl p-6">
         <h2 class="font-bold text-lg mb-4">📍 Location</h2>
@@ -138,22 +179,22 @@
                     <option value="30" {{ sel_log_30 }}>30 min</option>
                 </select>
             </label>
-            <!-- ENH 4: Voice Mode -->
-            <label><span class="text-slate-400">Voice Mode <span class="text-[10px] text-sky-400">(ENH 4)</span></span>
+            <!-- Voice Mode -->
+            <label><span class="text-slate-400">Voice Mode</span>
                 <select name="voice_mode" class="mt-1 w-full rounded-xl px-3 py-2">
                     <option value="ON" {{ sel_voice_ON }}>ON — speak temps</option>
                     <option value="OFF" {{ sel_voice_OFF }}>OFF</option>
                 </select>
             </label>
-            <!-- ENH 5: Guest Mode -->
-            <label><span class="text-slate-400">Guest Mode <span class="text-[10px] text-sky-400">(ENH 5)</span></span>
+            <!-- Guest Mode -->
+            <label><span class="text-slate-400">Guest Mode</span>
                 <select name="guest_mode" class="mt-1 w-full rounded-xl px-3 py-2">
                     <option value="ON" {{ sel_guest_ON }}>ON — dim after 30m idle</option>
                     <option value="OFF" {{ sel_guest_OFF }}>OFF</option>
                 </select>
             </label>
-            <!-- ENH 6: Screen Timeout -->
-            <label><span class="text-slate-400">Screen timeout <span class="text-[10px] text-sky-400">(ENH 6)</span></span>
+            <!-- Screen timeout (0 = never blank) -->
+            <label><span class="text-slate-400">Screen timeout</span>
                 <select name="screen_timeout" class="mt-1 w-full rounded-xl px-3 py-2">
                     <option value="0" {{ sel_timeout_0 }}>Never blank</option>
                     <option value="30" {{ sel_timeout_30 }}>30 s idle</option>
@@ -161,11 +202,18 @@
                     <option value="300" {{ sel_timeout_300 }}>5 min idle</option>
                 </select>
             </label>
-            <!-- ENH 3: log compression -->
-            <label><span class="text-slate-400">Log compression <span class="text-[10px] text-sky-400">(ENH 3)</span></span>
+            <!-- Log compression -->
+            <label><span class="text-slate-400">Log compression</span>
                 <select name="compress_logs" class="mt-1 w-full rounded-xl px-3 py-2">
                     <option value="ON" {{ sel_compress_ON }}>ON — gzip rows &gt; 30 days</option>
                     <option value="OFF" {{ sel_compress_OFF }}>OFF</option>
+                </select>
+            </label>
+            <!-- Local Storage Only Mode -->
+            <label><span class="text-slate-400">Local Storage Only Mode</span>
+                <select name="local_mode" class="mt-1 w-full rounded-xl px-3 py-2">
+                    <option value="ON" {{ sel_local_ON }}>ON — offline, local data only</option>
+                    <option value="OFF" {{ sel_local_OFF }}>OFF — live Open-Meteo</option>
                 </select>
             </label>
             <div class="sm:col-span-2 text-xs text-amber-400" id="voice-hint">{{ voice_backend_hint }}</div>
@@ -173,6 +221,19 @@
                 <button type="submit" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold transition">Save settings</button>
             </div>
         </form>
+    </section>
+
+    <!-- BACKUP -->
+    <section class="glass rounded-2xl p-6">
+        <h2 class="font-bold text-lg mb-1">🗄️ Backup & Restore</h2>
+        <p class="text-xs text-slate-500 mb-4">A full database + settings snapshot is saved
+            automatically every 24 hours into <code class="text-sky-300">backups/backup_YYYY-MM-DD/</code>.
+            You can also trigger one right now.</p>
+        <div class="flex items-center gap-3">
+            <button onclick="runBackupNow()"
+                    class="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white text-sm font-bold transition">Run backup now</button>
+            <span id="backup-result" class="text-sm text-slate-400"></span>
+        </div>
     </section>
 
     <!-- DANGER ZONE -->
@@ -184,5 +245,41 @@
         </form>
     </section>
 </main>
+
+<script>
+async function savePins() {
+    const form = document.getElementById('pin-form');
+    const data = {};
+    new FormData(form).forEach((v, k) => data[k] = v);
+    const res = await fetch('/update-pins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    const out = await res.json();
+    const box = document.getElementById('pin-result');
+    if (out.status === 'success') {
+        box.textContent = out.message + (out.changed_pins ? ' (' + out.changed_pins.join(', ') + ')' : '');
+        box.className = 'text-sm ' + (out.changed ? 'text-emerald-300' : 'text-slate-400');
+    } else {
+        box.textContent = Object.values(out.errors || { e: out.message || 'invalid input' }).join(', ');
+        box.className = 'text-sm text-rose-400';
+    }
+}
+
+async function runBackupNow() {
+    const res = await fetch('/run-backup', { method: 'POST' });
+    const out = await res.json();
+    const box = document.getElementById('backup-result');
+    if (out.ok) {
+        box.textContent = '✓ Saved to ' + out.path;
+        box.className = 'text-sm text-emerald-300';
+    } else {
+        box.textContent = 'Backup failed — see logs';
+        box.className = 'text-sm text-rose-400';
+    }
+}
+</script>
+
 </body>
 </html>

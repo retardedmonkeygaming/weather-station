@@ -137,6 +137,20 @@ DISCORD_UPDATE_MIN_INTERVAL_S = int(
 # admin commands. Guild administrators always pass.
 DISCORD_ADMIN_ROLE: Optional[str] = os.environ.get("DISCORD_ADMIN_ROLE") or None
 
+# Discord weather image (optional): a static image URL attached to every
+# weather-card embed. When unset the bot generates a free placeholder image
+# (placehold.co) carrying the condition text.
+DISCORD_WEATHER_IMAGE_URL: Optional[str] = (
+    os.environ.get("DISCORD_WEATHER_IMAGE_URL") or None
+)
+
+# Discord daily-alarm reminder channel (optional). Falls back to the
+# live-update channel when unset; bot posts a reminder embed at the alarm
+# time each day the alarm is enabled.
+DISCORD_REMINDER_CHANNEL_ID: Optional[int] = (
+    _env_int("DISCORD_REMINDER_CHANNEL_ID", 0) or None
+)
+
 # ---------------------------------------------------------------------------
 # LCD design-system constants (STRICT 1602A geometry)
 # ---------------------------------------------------------------------------
@@ -205,6 +219,14 @@ WEB_AUTH_PASSWORD = os.environ.get("WEB_AUTH_PASSWORD", "admin")
 # days into logs_archive/ when the compress_logs setting is ON.
 LOGS_ARCHIVE_DIR = _PROJECT_ROOT / "logs_archive"
 LOG_ARCHIVE_AFTER_DAYS = _env_int("LOG_ARCHIVE_AFTER_DAYS", 30) or 30
+
+# Auto-Backup (ENH 3 of the final pack): every AUTO_BACKUP_INTERVAL_S the
+# station writes a full DB + settings snapshot into backups/backup_YYYY-MM-DD/.
+# Set AUTO_BACKUP_ENABLED=OFF in .env to disable.
+BACKUP_DIR = _PROJECT_ROOT / "backups"
+AUTO_BACKUP_INTERVAL_S = _env_int("AUTO_BACKUP_INTERVAL_S", 24 * 3600) or 86400
+AUTO_BACKUP_ENABLED = os.environ.get(
+    "AUTO_BACKUP_ENABLED", "ON").strip().upper() in ("ON", "1", "TRUE", "YES")
 
 # Voice Mode: announce temperature shifts of at least this many degrees C
 VOICE_TEMP_DELTA_C = 2.0
@@ -289,6 +311,7 @@ SETTINGS_DEFAULTS: Dict[str, Any] = {
     "alert_low": BOOT_TEMP_LOW_THRESHOLD,
     "screen_timeout": 30,  # seconds of idle before LCD blanks (0 = off)
     "compress_logs": "OFF",  # ON: gzip-archive log rows > 30 days old
+    "local_mode": "OFF",   # ON: no Open-Meteo calls — DHT11 + SQLite only
 }
 
 # Type coercion map used when loading settings from the DB
@@ -369,6 +392,22 @@ def clear_notifications() -> None:
         _notifications.clear()
 
 
+def request_webui_flash(text: str = "Visit WebUI!") -> None:
+    """Dynamic display: ask the LCD to show `text` once at the next tick.
+
+    Also counts as user activity: the screen-timeout and Guest-Mode idle
+    timers reset, so a dashboard visit wakes a blanked panel.
+    """
+    state.webui_ping_seq += 1
+    state.webui_ping_text = text
+    state.last_button_press = time.time()
+
+
+def is_local_mode(state: "AppState") -> bool:
+    """Local Storage Only Mode: True disables every Open-Meteo call."""
+    return state.get_setting("local_mode") == "ON"
+
+
 # ---------------------------------------------------------------------------
 # Shared runtime state (single mutable object, guard for cross-thread writes)
 # ---------------------------------------------------------------------------
@@ -447,6 +486,12 @@ class AppState:
 
     # LCD mirror of what is physically rendered (for web dashboard display)
     last_lcd_rendered_text: list = field(default_factory=lambda: ["", ""])
+
+    # Dynamic display: a web-UI visit bumps the sequence and stores a short
+    # banner; the display loop shows it once, then returns to the page.
+    webui_ping_seq: int = 0
+    webui_ping_shown: int = 0
+    webui_ping_text: str = ""
 
     # Settings (loaded from DB over defaults at boot)
     settings: Dict[str, Any] = field(

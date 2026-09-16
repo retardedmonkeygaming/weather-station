@@ -23,6 +23,20 @@ Live updates:
     rate-limited by DISCORD_UPDATE_MIN_INTERVAL_S. Alerts/alarm bypass the
     rate limit so warnings are never swallowed.
 
+Weather image (final pack):
+    Every weather card carries an image: DISCORD_WEATHER_IMAGE_URL when set,
+    otherwise an auto-generated free placeholder (placehold.co) reflecting
+    the current condition text — no extra dependencies.
+
+Alarm reminder (final pack):
+    When the daily alarm is enabled, a reminder embed is posted each day at
+    the alarm time to DISCORD_REMINDER_CHANNEL_ID (falling back to the
+    live-update channel), so the alarm is visible even away from the LCD.
+
+Boot status embed (final pack):
+    After the slash-command sync on ready, the bot posts a one-shot station
+    state card to the reminder/live channel — proof of life on every start.
+
 Permissions:
     Admin commands require the Discord "Administrator" permission or
     membership in the role named by DISCORD_ADMIN_ROLE (setup wizard / .env).
@@ -37,8 +51,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 import config, database
 from config import get_state
@@ -71,6 +86,11 @@ AQI_COLORS: Dict[str, int] = {
     "Good": 0x34D399, "Moderate": 0xFBBF24,
     "Sensitiv": 0xF97316, "Unhealthy": 0xEF4444,
 }
+
+# Free placeholder-image service used when DISCORD_WEATHER_IMAGE_URL is not
+# configured — renders the condition text on a sky-blue card (no API key).
+PLACEHOLDER_IMAGE = ("https://placehold.co/600x200/0ea5e9/0c4a6e"
+                     ".png?text={}")
 
 
 def _spoken_temp(value, unit: str) -> str:
@@ -179,6 +199,13 @@ class WeatherBotClient:
                               f"{state.page_names.get(state.current_page, '')}",
                         inline=True)
         embed.set_footer(text=f"Raspberry Pi Weather Station v{config.APP_VERSION}")
+        # Final pack, feature 1: weather image on every card — a configured
+        # static image wins; otherwise a free placeholder is generated.
+        image = config.DISCORD_WEATHER_IMAGE_URL
+        if not image:
+            image = PLACEHOLDER_IMAGE.format(
+                quote(f"{w_text} — indoor {format_temp(state.indoor_temp, unit)}"))
+        embed.set_image(url=image)
         return embed
 
     # ------------------------------------------------------------------
@@ -322,6 +349,8 @@ class WeatherBotClient:
                 log.info("Discord slash commands synced")
             except Exception:
                 log.exception("Discord slash command sync failed")
+            # Final pack, feature 3: one-shot boot status embed.
+            await self._post_boot_status()
 
         @self.client.event
         async def on_message(message):
@@ -523,6 +552,8 @@ class WeatherBotClient:
     live_channel_id: Optional[int] = config.DISCORD_UPDATE_CHANNEL_ID
     _last_signature: Optional[tuple] = None
     _last_post_ts: float = 0.0
+    _last_reminder_sig: Optional[tuple] = None
+    _last_reminder_fire: float = 0.0
 
     def _live_signature(self) -> tuple:
         state = get_state()
@@ -565,6 +596,118 @@ class WeatherBotClient:
             self._last_post_ts = now
         except Exception:
             log.exception("Live-update post failed")
+
+    # ------------------------------------------------------------------
+    # Final pack features: boot status + alarm reminder
+    # ------------------------------------------------------------------
+
+    async def _resolve_channel(self, preferred: Optional[int]) -> Any:
+        """Fetch a text channel by ID with a graceful None on failure."""
+        if not preferred:
+            return None
+        channel = self.client.get_channel(preferred)
+        if channel is None:
+            try:
+                channel = await self.client.fetch_channel(preferred)
+            except Exception:
+                log.warning("Discord channel %s unreachable", preferred)
+                return None
+        return channel
+
+    async def _post_boot_status(self) -> None:
+        """Final pack, feature 3: one-shot 'station is up' embed on boot.
+
+        Posts to DISCORD_REMINDER_CHANNEL_ID, falling back to the live-update
+        channel. Never raises — a missing channel just skips the post.
+        """
+        target = config.DISCORD_REMINDER_CHANNEL_ID or config.DISCORD_UPDATE_CHANNEL_ID
+        if not target:
+            log.info("Discord boot status skipped — no channel configured")
+            return
+        try:
+            await self.client.wait_until_ready()
+            channel = await self._resolve_channel(target)
+            if channel is None:
+                return
+            state = get_state()
+            subsystems = config.subsystem_status()
+            pi = render.get_pi_system_stats()
+            color = 0x34D399 if not subsystems else 0xFBBF24
+            fields = {
+                "State": "🟢 Online — services nominal" if not subsystems
+                         else "🟡 Online — some subsystems recovering",
+                "Indoor": format_temp(state.indoor_temp,
+                                      state.get_setting("unit")),
+                "Outdoor": format_temp(state.outdoor_temp,
+                                       state.get_setting("unit")),
+                "CPU": f"{pi['cpu_temp']} · {pi['cpu_usage']}",
+                "RAM": pi["ram_usage"],
+            }
+            if subsystems:
+                fields["Recovering"] = ", ".join(subsystems.keys())
+            await channel.send(embed=self._embed(
+                "🛰️ Weather Station Online",
+                fields, color=color))
+            log.info("Discord boot status posted to channel %s", target)
+        except Exception:
+            log.exception("Discord boot status post failed")
+
+    def _alarm_reminder_signature(self) -> tuple:
+        """(date, alarm hour, alarm minute) — one reminder per alarm time/day.
+
+        Editing the alarm time changes the tuple, which re-arms the reminder
+        within the same day; the next day rotates the date component.
+        """
+        state = get_state()
+        return (
+            datetime.now().strftime("%Y-%m-%d"),
+            state.get_setting("alarm_hr"),
+            state.get_setting("alarm_min"),
+        )
+
+    async def alarm_reminder_tick(self) -> None:
+        """Final pack, feature 2: daily Discord alarm reminder.
+
+        When the daily alarm is ON and the configured minute arrives, post a
+        reminder embed (once per day per alarm-time change) to the reminder
+        channel, falling back to the live-update channel.
+        """
+        state = get_state()
+        if state.get_setting("alarm_on") != "ON":
+            return
+        target = (config.DISCORD_REMINDER_CHANNEL_ID
+                  or config.DISCORD_UPDATE_CHANNEL_ID)
+        if not target:
+            return
+
+        now = datetime.now()
+        if (now.hour != int(state.get_setting("alarm_hr"))
+                or now.minute != int(state.get_setting("alarm_min"))):
+            return
+        sig = self._alarm_reminder_signature()
+        if sig == self._last_reminder_sig:
+            return
+        self._last_reminder_sig = sig
+
+        channel = await self._resolve_channel(target)
+        if channel is None:
+            return
+        try:
+            unit = state.get_setting("unit")
+            await channel.send(embed=self._embed(
+                "⏰ Daily Alarm Reminder",
+                {
+                    "Time": f"{now.hour:02d}:{now.minute:02d}",
+                    "Indoor": format_temp(state.indoor_temp, unit),
+                    "Outdoor": format_temp(state.outdoor_temp, unit),
+                    "LCD": f"Page {state.current_page} — "
+                           f"{state.page_names.get(state.current_page, '')}",
+                },
+                color=0xFBBF24))
+            log.info("Discord alarm reminder posted for %02d:%02d",
+                     now.hour, now.minute)
+        except Exception:
+            log.exception("Discord alarm reminder failed")
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -625,10 +768,13 @@ async def discord_bot_task() -> None:
     bot = WeatherBotClient(token)
     live_task = asyncio.create_task(_live_update_loop(bot),
                                     name="discord-live-updates")
+    reminder_task = asyncio.create_task(_alarm_reminder_loop(bot),
+                                        name="discord-alarm-reminder")
     try:
         await bot.run()
     finally:
         live_task.cancel()
+        reminder_task.cancel()
 
 
 async def _live_update_loop(bot: "WeatherBotClient") -> None:
@@ -642,5 +788,25 @@ async def _live_update_loop(bot: "WeatherBotClient") -> None:
             except Exception:
                 log.exception("live update tick failed")
             await asyncio.sleep(15)
+    except asyncio.CancelledError:
+        raise
+
+
+async def _alarm_reminder_loop(bot: "WeatherBotClient") -> None:
+    """Final pack, feature 2: minute-cadence alarm reminder checker.
+
+    Waits for the gateway to be ready, then ticks once a minute; the tick
+    itself enforces the ON-state, time match, and once-per-day signature.
+    """
+    try:
+        await bot.client.wait_until_ready()
+        while True:
+            try:
+                await bot.alarm_reminder_tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("alarm reminder tick failed")
+            await asyncio.sleep(20)
     except asyncio.CancelledError:
         raise

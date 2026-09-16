@@ -37,6 +37,7 @@ ENV_KEYS = [
     "DHT_PIN", "BUTTON_PIN", "BUZZER_PIN",
     "DISCORD_BOT_TOKEN",
     "DISCORD_UPDATE_CHANNEL_ID", "DISCORD_ADMIN_ROLE",
+    "DISCORD_WEATHER_IMAGE_URL", "DISCORD_REMINDER_CHANNEL_ID",
 ]
 
 def _config_target() -> Path:
@@ -112,8 +113,7 @@ def _patch_config_constants(updates: Dict[str, str]) -> None:
     text = target.read_text(encoding="utf-8")
 
     for key in ENV_KEYS:
-        if key in ("DISCORD_BOT_TOKEN", "DISCORD_UPDATE_CHANNEL_ID",
-                   "DISCORD_ADMIN_ROLE"):
+        if key.startswith("DISCORD_"):
             continue  # secrets/optional keys live in .env only, never in code
         value = updates.get(key)
         if value is None:
@@ -122,20 +122,15 @@ def _patch_config_constants(updates: Dict[str, str]) -> None:
         pattern = rf"({key}:\s*int\s*=\s*)(\d+)"
         text = re.sub(pattern, rf"\g<1>{value}", text, count=1)
 
-    text = re.sub(
-        r"(SETUP_WIZARD_COMPLETED\s*=\s*)(True|False)",
-        rf"\g<1>True",
-        text,
-        count=1,
-    )
-
     target.write_text(text, encoding="utf-8")
 
 
 def save_setup(pins: Dict[str, int],
                discord_token: Optional[str] = None,
                discord_channel_id: Optional[str] = None,
-               discord_admin_role: Optional[str] = None) -> Dict[str, str]:
+               discord_admin_role: Optional[str] = None,
+               discord_image_url: Optional[str] = None,
+               discord_reminder_channel_id: Optional[str] = None) -> Dict[str, str]:
     """Persist wizard results: .env always; config.py patched as a mirror.
 
     Returns the sanitized .env content actually written (token masked).
@@ -147,6 +142,10 @@ def save_setup(pins: Dict[str, int],
         updates["DISCORD_UPDATE_CHANNEL_ID"] = discord_channel_id
     if discord_admin_role:
         updates["DISCORD_ADMIN_ROLE"] = discord_admin_role
+    if discord_image_url:
+        updates["DISCORD_WEATHER_IMAGE_URL"] = discord_image_url
+    if discord_reminder_channel_id:
+        updates["DISCORD_REMINDER_CHANNEL_ID"] = discord_reminder_channel_id
 
     ensure_directories()
     _upsert_env(ENV_FILE, updates)

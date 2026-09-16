@@ -1,7 +1,112 @@
 # Changelog
 
+All notable changes to the Raspberry Pi Weather Station are documented here.
+
+## [5.4] — Documentation & Final Packaging
+
+### Added
+- **`docs/` documentation set** — `index.md` hub, full User Manual (install,
+  wizard, daily use, features, maintenance, troubleshooting), Setup Guide
+  (wiring + wizard walkthrough), Dashboard Guide, Designer Guide, Discord
+  Guide (token setup + command reference), API Reference, and a
+  Screenshots page describing every screen and LCD frame.
+- README: new **Discord bot token setup** walkthrough (Developer Portal,
+  message-content intent, OAuth scopes, wizard/.env keys) and a docs map.
+
+### Verified (acceptance battery)
+- First run: `/` → `/setup` redirect, LCD stands on `Setup Needed! /
+  Visit WebUI!` until configured.
+- Wizard idempotency: 3 consecutive saves (different + repeated values)
+  update `.env` in place with zero duplicate keys, preserve the token when
+  omitted, patch `config.py`, and pre-fill Reconfigure mode.
+- Designer: page 10 created (`widget_moon`), activated on the physical LCD
+  live (`\x07 Wax Crescent / Illum: 21%`), renamed, server-previewed.
+- Discord: 10 slash commands registered; `/setpage`, `/alarm-on`, and the
+  weather card (with auto-placeholder image) verified offline.
+- 16-char audit: 130 frames across every widget + settings FSM in
+  worst-case state (°F extremes, AQI 999 "Hazard", error flags) — zero
+  violations. Zero boot tracebacks.
+
+## [5.3] — Discord Final Pack & UX Fixes
+
+### Discord bot
+- **Weather Image** — every weather-card embed now carries an image:
+  `DISCORD_WEATHER_IMAGE_URL` when configured, otherwise an auto-generated
+  free placeholder (placehold.co) reflecting the current condition text.
+- **Alarm Reminder** — when the daily alarm is ON, a reminder embed is posted
+  to `DISCORD_REMINDER_CHANNEL_ID` (fallback: live-update channel) each day
+  at the alarm time; deduplicated per (day, alarm time) and re-armed when the
+  alarm time is edited. New optional setup-wizard field.
+- **Boot Status Embed** — after connecting and syncing slash commands, the
+  bot posts a one-shot "Weather Station Online" card (state, temps, CPU/RAM,
+  recovering subsystems) to the reminder/live channel.
+
+### Added
+- **Local Storage Only Mode** — settings toggle that disables all Open-Meteo
+  calls; outdoor/AQI/UV fields freeze at last known values, dashboard shows
+  a warning banner, and API-driven widgets note the cached state.
+- **Auto-Backup** — full database + settings snapshot every 24 h into
+  `backups/backup_YYYY-MM-DD/` (VACUUM INTO copy + JSON snapshot), plus a
+  manual "Run backup now" button in Settings.
+- **Pin re-configuration** — Hardware Pins editor in Settings (same unique-pin
+  validation as the wizard; takes effect after restart).
+- **Dynamic LCD** — opening the web UI flashes "WebUI Connected!" on the
+  physical LCD once and counts as activity (wakes blanked screens).
+
+### Fixed
+- First boot no longer dead-ends on a "Sensor Missing" error loop: the boot
+  gate is non-blocking and, before setup, the LCD stands on
+  "Setup Needed! / Visit WebUI!".
+- `/setup` no longer redirects back to itself after saving; it is always
+  reachable as "Reconfigure Hardware" with all saved values pre-filled
+  (bot token stays blank), and saving now links straight to the dashboard.
+- Clock/date LCD page is now centered; all 130 audited frames (worst-case F
+  units, max AQI, error flags) stay within the strict 16-column limit.
+- "Screen OFF" powers the display down but a tap restores "ON" instead of
+  leaving a dead panel; "Never blank" (screen timeout 0) never blanks.
+- Web UI letter-spacing tightened (removed stretched `tracking-wider` labels)
+  and all internal "(ENH n)" badges removed from visible text.
+
+
 All notable changes to the Raspberry Pi Weather Station.
 Format: [version] — date — highlights.
+
+## [5.2.1] — 2026-09-15 — Packaging & Polish
+
+### Added
+- **README rewrite**: full installation guide (Pi / desktop / Docker),
+  setup-wizard walkthrough with idempotency notes, configuration table,
+  daily-use guide, project layout, and troubleshooting.
+- **`.dockerignore`**: keeps venvs, secrets, logs, databases, and docs out
+  of the Docker build context.
+- **`.gitignore` rebuilt**: covers DB/WAL artifacts, `logs_archive/`,
+  rotating logs, `.env`, venvs, and editor/OS files.
+
+### Fixed
+- `requirements.txt` contained packages this project never imports
+  (google-genai transitive pins, SSD1306, RPi.GPIO/spidev markers,
+  pydantic-settings); rewritten to map 1:1 to real imports.
+- **16-char contract hardened at the source**: worst-case frames (°F
+  extremes, max AQI/PM, offline flags) could exceed 16 columns and rely on
+  the driver's hard clip. Added `_compact_temp` (whole-degree degradation),
+  compact PM integers (`P25:`), and a one-char offline flag — all 108
+  frames (12 widgets × 2 states, settings FSM 1–10, alert, alarm) verified
+  ≤ 16 columns before the driver clips.
+- Removed dead SkyCast-era code: `src/` package, root `weather_station/`
+  prototype, `scripts/install.sh`, `IMPLEMENTATION_GUIDE.md`, and
+  `pyproject.toml` (wrong project name/version). The flat root layout is
+  canonical.
+- Setup wizard fully idempotent: repeated saves update `.env` keys in
+  place (byte-identical file for identical input), secrets never leak into
+  `config.py`, and a stale config-patch line for a never-defined flag was
+  removed.
+- `.gitignore` contained literal git merge-conflict markers.
+
+### Verified
+- 16×2 strict-geometry audit across all widgets, settings frames, alert
+  frames, alarm frames, and custom JSON blocks (see [5.1] notes).
+- Setup wizard idempotency: repeated saves update `.env` keys in place
+  and re-patch `config.py` cleanly.
 
 ## [5.2] — 2026-09-15 — Final Enhancement Pack
 
@@ -134,3 +239,48 @@ Format: [version] — date — highlights.
   with green/blue themes, drag-and-drop widgets, and renameable tabs.
 - Burn-once CGRAM glyphs (\x00–\x07): created once at startup, never
   re-created at runtime (thread-safe, render-cycle safe).
+
+## [4.0] — 2026-08-14 — Monolith Feature Freeze
+
+Last release of the single-file `weather_station.py` era (1,679 lines).
+
+### Added
+- Complete feature set in one script: FastAPI web dashboard, UI page
+  designer, SQLite history, daily alarm, temp alerts, auto-scroll,
+  factory reset, DHT calibration, location config, buzzer modes,
+  moon phase, AQI, Discord bot, and the 12-widget LCD system.
+
+### Known issues (fixed in 4.1+)
+- Single-file monolith: untestable, hard to extend, tangled concerns.
+- Dynamic CGRAM glyph rewrites could glitch in-flight LCD frames.
+- No task supervision: one failed background loop could stall boot.
+
+## [3.2] — 2026-08-04 — Dashboard Polish
+
+### Added
+- Glassmorphism dark theme, Chart.js history graph, page designer
+  simulation box with green/blue LCD themes.
+- CSV log export and database clear from the logs page.
+
+### Fixed
+- Outdoor humidity from Open-Meteo arrives as a numeric string; coerced
+  before formatting (was rendering N/A).
+
+## [3.1] — 2026-07-31 — AQI + Moon Phase
+
+### Added
+- Open-Meteo Air Quality integration (US AQI, PM2.5, PM10) with
+  status labels sized for the 16-column LCD.
+- Pure-math moon phase calculation (synodic age, illumination %,
+  8-phase table) with the custom moon glyph on page 6.
+
+## [3.0] — 2026-07-25 — First Web Dashboard
+
+### Added
+- Initial FastAPI dashboard replacing the serial console UI.
+- DHT11 async polling with calibration offset and 30-min trend.
+- Daily alarm with buzzer quiet-hours (23:00–07:00) policy.
+- Button interaction model: tap pages, triple-tap settings,
+  hold-to-cycle, 5s reboot / 10s shutdown.
+- 1602A custom characters \x00–\x07 (hourglass animation, bell, smile,
+  cloud, sun, loading block, moon).

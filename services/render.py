@@ -23,6 +23,7 @@ from services import moon_phase
 from services.weather_api import weather_info
 from utils import (
     format_temp, format_humid, get_comfort_level, scroll_label, safe_float,
+    clip_text, center_text,
 )
 
 log = logging.getLogger("weather.render")
@@ -35,12 +36,36 @@ LCD_COLS = config.LCD_COLUMNS
 # Predefined widgets (each returns a Frame engineered for 16 cols x 2 rows)
 # ---------------------------------------------------------------------------
 
+def _compact_temp(c_temp, unit: str, cols: int = 5) -> str:
+    """format_temp, shortened until it fits `cols` chars.
+
+    Normal temps ("23.5C" / "74.3F") pass through untouched; only extreme
+    values ("-40.0F", "257.0F") degrade to whole degrees so LCD lines stay
+    within 16 columns without relying on the driver's hard clip.
+    """
+    s = format_temp(c_temp, unit)
+    while len(s) > cols and "." in s:
+        s = f"{float(s[:-1]):.0f}{s[-1]}"
+    return s
+
+
+def _pm(v) -> str:
+    """Particulate value as a compact int string ('999' / 'N/A')."""
+    try:
+        return str(int(float(v)))
+    except (TypeError, ValueError):
+        return "N/A"
+
+
 def widget_clock(_state) -> Frame:
     state = get_state()
     now = datetime.now()
-    alarm_icon = "\x02 " if state.get_setting("alarm_on") == "ON" else ""
-    line1 = f"{state.clock_icon_frame} {now.strftime('%H:%M:%S')}"
-    line2 = f"{alarm_icon}{now.strftime('%d-%m-%Y')}"
+    # Centered time & date (user request: the clock page looked empty because
+    # both lines hugged the left edge). Alarm bell keeps its glyph slot.
+    alarm = state.get_setting("alarm_on") == "ON"
+    time_s = ("\x02 " if alarm else "") + now.strftime("%H:%M:%S")
+    line1 = center_text(time_s, LCD_COLS)
+    line2 = center_text(now.strftime("%d-%m-%Y"), LCD_COLS)
     return line1, line2
 
 
@@ -48,7 +73,9 @@ def widget_indoor(_state) -> Frame:
     state = get_state()
     if state.dht_error:
         return "In: ERR [DHT11]", "State: Check"
-    line1 = (f"In:{format_temp(state.indoor_temp, state.get_setting('unit'))}"
+    unit = state.get_setting("unit")
+    # Worst case fits 16: "In:-40F-> H:100%" — compact temp keeps headroom.
+    line1 = (f"In:{_compact_temp(state.indoor_temp, unit)}"
              f"{state.temp_trend_symbol} H:{format_humid(state.indoor_humid)}")
     line2 = f"State: {get_comfort_level(state.indoor_temp, state.indoor_humid)} \x03"
     return line1, line2
@@ -57,12 +84,14 @@ def widget_indoor(_state) -> Frame:
 def widget_outdoor(_state) -> Frame:
     state = get_state()
     unit = state.get_setting("unit")
-    t_out = format_temp(state.outdoor_temp, unit)
-    h_out = format_humid(safe_float(state.outdoor_humid))
+    humid = safe_float(state.outdoor_humid)
+    h_out = f"{int(humid)}%" if humid is not None else "N/A"
     w_icon, w_text = weather_info(state.weather_code)
-    flag = " [OFF]" if state.wifi_error else ""
-    line1 = f"Out:{t_out} {h_out}{flag}"
-    line2 = f"Fcst: {w_icon} {w_text}"
+    # "*"/"!" = station offline (full word would overflow worst case); the
+    # status page and web dashboard spell it out.
+    flag = "*" if state.wifi_error else ""
+    line1 = f"Out:{_compact_temp(state.outdoor_temp, unit)} {h_out}{flag}"
+    line2 = f"Fcst: {w_icon} {w_text}{'!' if state.wifi_error else ''}"
     return line1, line2
 
 
@@ -70,17 +99,19 @@ def widget_forecast(_state) -> Frame:
     state = get_state()
     unit = state.get_setting("unit")
     flag = "!" if state.wifi_error else ""
-    line1 = (f"L:{format_temp(state.outdoor_min, unit)} "
-             f"H:{format_temp(state.outdoor_max, unit)}{flag}")
+    line1 = (f"L:{_compact_temp(state.outdoor_min, unit)} "
+             f"H:{_compact_temp(state.outdoor_max, unit)}{flag}")
     line2 = f"UV:{state.uv_current} Max:{state.uv_max}"
     return line1, line2
 
 
 def widget_aqi(_state) -> Frame:
     state = get_state()
+    # Engineered for 16 cols: "AQI:999 Sensitiv" = 16 exactly (max label 8)
+    line1 = f"AQI:{state.aqi_val} {state.aqi_status}"
     flag = "!" if state.wifi_error else ""
-    line1 = f"AQI:{state.aqi_val}{flag} ({state.aqi_status})"
-    line2 = f"P2.5:{state.pm2_5_val} P10:{state.pm10_val}"
+    # Worst case fits 16: "P25:999 P10:999!"
+    line2 = f"P25:{_pm(state.pm2_5_val)} P10:{_pm(state.pm10_val)}{flag}"
     return line1, line2
 
 
@@ -92,7 +123,8 @@ def widget_pm(_state) -> Frame:
 
 def widget_moon(_state) -> Frame:
     _, short_p, illum, _ = moon_phase.calculate_moon_phase()
-    return f"Moon: \x07 {short_p}", f"Illum: {illum}%"
+    # Glyph + short phase name: "\x07 Wax Crescent" = 14 cols (fits any phase)
+    return f"\x07 {short_p}", f"Illum: {illum}%"
 
 
 def widget_humidity(_state) -> Frame:
@@ -177,8 +209,8 @@ WIDGET_CATALOG = [
      "desc": "Indoor temp & humidity"},
     {"type": "widget_outdoor",  "icon": "☀️", "title": "Outdoor Weather",
      "desc": "Outdoor conditions now"},
-    {"type": "widget_forecast", "icon": "📅", "title": "Temp Range",
-     "desc": "Daily min/max + UV"},
+    {"type": "widget_forecast", "icon": "📅", "title": "Weather Forecast",
+     "desc": "Daily min/max + UV (cached in Local Mode)"},
     {"type": "widget_aqi",      "icon": "🍃", "title": "Air Quality",
      "desc": "US AQI score & status"},
     {"type": "widget_pm",       "icon": "🌫️", "title": "Air Pollutants",
@@ -246,7 +278,7 @@ _SETTINGS_FRAMES = {
     7:  lambda s: ("7. Alarm Minute", f"> Mins: [{int(s.get_setting('alarm_min')):02d}]"),
     8:  lambda s: ("8. API Interval", f"> Rate: [{int(s.get_setting('api_rate'))}m]"),
     9:  lambda s: ("9. Log Interval", f"> Rate: [{int(s.get_setting('log_rate'))}m]"),
-    10: lambda s: ("10. Factory Reset", "> HOLD 3S RESET"),
+    10: lambda s: ("10.Factory Reset", "> HOLD 3S RESET"),
 }
 
 
@@ -306,5 +338,7 @@ def build_frame(state) -> Frame:
 
 
 def _split_alert(msg: str) -> Frame:
+    """Split an alert message into two rows, clipped to 16 cols each."""
     lines = msg.split("\n")
-    return lines[0], lines[1] if len(lines) > 1 else ""
+    return clip_text(lines[0], LCD_COLS), clip_text(
+        lines[1] if len(lines) > 1 else "", LCD_COLS)

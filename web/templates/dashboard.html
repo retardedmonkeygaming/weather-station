@@ -32,6 +32,7 @@
             border: 6px solid #1c3d20;
             box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.8), 0 0 30px rgba(125, 255, 125, 0.08);
         }
+        body { word-spacing: normal; letter-spacing: normal; }
         .glow-dot { box-shadow: 0 0 10px 2px currentColor; }
     </style>
 </head>
@@ -72,6 +73,17 @@
 
 <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
 
+    <!-- Local Storage Only Mode banner -->
+    <div id="local-banner" class="hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-4 flex items-center gap-4">
+        <span class="text-3xl">📴</span>
+        <div>
+            <p class="font-bold text-amber-300">Local Storage Only Mode is ON</p>
+            <p class="text-sm text-slate-400">The Open-Meteo API is disabled — showing local sensor data and SQLite history only.
+               Outdoor weather, forecast, UV and air quality are frozen at their last known values.
+               You can disable it on the <a href="/settings" class="text-sky-300 hover:underline">Settings</a> page.</p>
+        </div>
+    </div>
+
     <!-- HEADER ROW -->
     <header class="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -87,22 +99,22 @@
     <!-- METRIC CARDS -->
     <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="glass rounded-2xl p-5">
-            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Indoor Temp</div>
+            <div class="text-xs uppercase text-slate-400 font-semibold">Indoor Temp</div>
             <div class="text-4xl font-extrabold mt-2 text-orange-300" id="metric-indoor-temp">--</div>
             <div class="text-xs text-slate-400 mt-1" id="metric-trend">trend —</div>
         </div>
         <div class="glass rounded-2xl p-5">
-            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Indoor Humidity</div>
+            <div class="text-xs uppercase text-slate-400 font-semibold">Indoor Humidity</div>
             <div class="text-4xl font-extrabold mt-2 text-sky-300" id="metric-indoor-humid">--</div>
             <div class="text-xs text-slate-400 mt-1" id="metric-comfort">comfort —</div>
         </div>
         <div class="glass rounded-2xl p-5">
-            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Outdoor Temp</div>
+            <div class="text-xs uppercase text-slate-400 font-semibold">Outdoor Temp</div>
             <div class="text-4xl font-extrabold mt-2 text-emerald-300" id="metric-outdoor-temp">--</div>
             <div class="text-xs text-slate-400 mt-1" id="metric-weather">—</div>
         </div>
         <div class="glass rounded-2xl p-5">
-            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Air Quality (US AQI)</div>
+            <div class="text-xs uppercase text-slate-400 font-semibold">Air Quality (US AQI)</div>
             <div class="text-4xl font-extrabold mt-2 text-violet-300" id="metric-aqi">--</div>
             <div class="text-xs text-slate-400 mt-1" id="metric-aqi-status">—</div>
         </div>
@@ -125,7 +137,7 @@
 
         <div class="glass rounded-2xl p-6 flex flex-col items-center justify-center gap-4">
             <h2 class="font-bold text-lg self-start">LCD Mirror <span class="text-xs font-normal text-slate-400">(16×2)</span></h2>
-            <div class="lcd-mirror rounded-lg px-4 py-3 text-xl leading-relaxed tracking-widest whitespace-pre" id="lcd-mirror">Waiting...</div>
+            <div class="lcd-mirror rounded-lg px-4 py-3 text-xl leading-relaxed whitespace-pre" id="lcd-mirror">Waiting...</div>
             <p class="text-xs text-slate-500">Page <span id="lcd-page">1</span> · updates live</p>
         </div>
     </section>
@@ -282,9 +294,15 @@ async function loadLiveData() {
         document.getElementById('uv-now').textContent = d.uv_current;
         document.getElementById('uv-max').textContent = d.uv_max;
         document.getElementById('temp-range').textContent = `${d.outdoor_min} / ${d.outdoor_max}`;
-        document.getElementById('pi-cpu-temp').textContent = d.pi_cpu_temp;
-        document.getElementById('pi-cpu-usage').textContent = d.pi_cpu_usage;
-        document.getElementById('pi-ram').textContent = d.pi_ram_usage;
+
+        // Local Storage Only Mode: banner + dim the API-driven fields.
+        const local = !!d.local_mode;
+        document.getElementById('local-banner').classList.toggle('hidden', !local);
+        ['metric-outdoor-temp', 'metric-aqi', 'uv-now', 'uv-max', 'temp-range']
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('opacity-40', local);
+            });
 
         document.getElementById('clock-line').textContent =
             `${d.date} ${d.time}`;

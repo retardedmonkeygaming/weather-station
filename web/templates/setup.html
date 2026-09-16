@@ -131,8 +131,18 @@
                         <input name="DISCORD_ADMIN_ROLE" type="text" placeholder="Station Admin"
                                class="mt-1 w-full rounded-xl px-3 py-2">
                     </label>
+                    <label class="text-sm block">
+                        <span class="text-slate-400">Alarm-reminder channel ID <span class="text-[10px]">(optional)</span></span>
+                        <input name="DISCORD_REMINDER_CHANNEL_ID" type="text" placeholder="123456789012345678"
+                               class="mt-1 w-full rounded-xl px-3 py-2 font-mono text-xs">
+                    </label>
+                    <label class="text-sm block">
+                        <span class="text-slate-400">Weather image URL <span class="text-[10px]">(optional)</span></span>
+                        <input name="DISCORD_WEATHER_IMAGE_URL" type="url" placeholder="https://example.com/station.jpg"
+                               class="mt-1 w-full rounded-xl px-3 py-2">
+                    </label>
                 </div>
-                <p class="text-xs text-slate-500 mt-2">Channel ID: enable Developer Mode in Discord (Settings → Advanced), then right-click a channel → Copy Channel ID. Weather cards are posted there whenever data changes.</p>
+                <p class="text-xs text-slate-500 mt-2">Channel ID: enable Developer Mode in Discord (Settings → Advanced), then right-click a channel → Copy Channel ID. Weather cards are posted to the live channel on data change; alarm reminders and the boot status card go to the reminder channel (fallback: live channel). Every card carries your weather image — or an auto-generated placeholder if unset.</p>
                 <p class="text-xs text-slate-500 mt-2">Stored only in your local <code>.env</code> — never synced or logged.</p>
             </section>
 
@@ -156,7 +166,7 @@
         </form>
     </div>
 
-    <p class="text-center text-xs text-slate-600 mt-6">Raspberry Pi Weather Station v5.0 · setup wizard</p>
+    <p class="text-center text-xs text-slate-600 mt-6">Raspberry Pi Weather Station · setup wizard</p>
 </main>
 
 <script>
@@ -192,6 +202,10 @@ function buildReview() {
         `DHT11 data → GPIO ${d.DHT_PIN}`,
         `Button → GPIO ${d.BUTTON_PIN}    Buzzer → GPIO ${d.BUZZER_PIN}`,
         `Discord → ${d.DISCORD_BOT_TOKEN ? 'token saved ✓' : 'skipped (can add later)'}`,
+        `Live updates → ${d.DISCORD_UPDATE_CHANNEL_ID ? 'channel ' + d.DISCORD_UPDATE_CHANNEL_ID : 'off'}` +
+            ` · Reminders → ${d.DISCORD_REMINDER_CHANNEL_ID ? 'channel ' + d.DISCORD_REMINDER_CHANNEL_ID : 'fallback'}`,
+        `Weather image → ${d.DISCORD_WEATHER_IMAGE_URL ? 'custom image' : 'auto placeholder'}`,
+        `Admin role → ${d.DISCORD_ADMIN_ROLE || 'administrators only'}`,
         `Live updates → ${d.DISCORD_UPDATE_CHANNEL_ID ? 'channel ' + d.DISCORD_UPDATE_CHANNEL_ID : 'off'}`,
         `Admin role → ${d.DISCORD_ADMIN_ROLE || 'administrators only'}`,
     ];
@@ -215,7 +229,9 @@ form.onsubmit = async (e) => {
         const box = document.getElementById('save-result');
         if (out.status === 'success') {
             box.innerHTML = '<span class="text-emerald-300 font-semibold">✓ Saved!</span> ' +
-                'Restart the station to apply: <code class="text-sky-300">python main.py</code>';
+                'Pins take effect after restarting the station ' +
+                '(<code class="text-sky-300">python main.py</code>). ' +
+                '<a href="/" class="text-emerald-300 underline font-semibold">Go to the dashboard →</a>';
             btn.textContent = 'Saved ✓';
         } else {
             box.innerHTML = '<span class="text-rose-400">Validation failed:</span> ' +

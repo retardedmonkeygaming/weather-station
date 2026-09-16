@@ -12,6 +12,8 @@ import base64
 import json
 import asyncio
 import logging
+import os
+import re
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -106,11 +108,17 @@ def _register_auth_middleware(app: FastAPI) -> None:
 # ---------------------------------------------------------------------------
 
 def _register_setup_routes(app: FastAPI) -> None:
-    """Guided first-run wizard: pins + optional Discord token."""
+    """Guided setup wizard: pins + optional Discord token.
+
+    Fix (setup loop): the wizard is reachable at ANY time. When the station
+    is already configured it renders in "Reconfigure" mode with the current
+    pins pre-filled, and the dashboard only redirects here when no valid
+    .env exists at all.
+    """
 
     @app.get("/setup", response_class=HTMLResponse)
     async def setup_wizard():
-        return _load_template("setup.html")
+        return _render_setup(_load_template("setup.html"))
 
     @app.post("/setup/save")
     async def setup_save(request: Request):
@@ -147,16 +155,118 @@ def _register_setup_routes(app: FastAPI) -> None:
         token = str(body.get("DISCORD_BOT_TOKEN", "")).strip() or None
         channel = str(body.get("DISCORD_UPDATE_CHANNEL_ID", "")).strip() or None
         admin_role = str(body.get("DISCORD_ADMIN_ROLE", "")).strip() or None
+        image_url = str(body.get("DISCORD_WEATHER_IMAGE_URL", "")).strip() or None
+        reminder = str(body.get("DISCORD_REMINDER_CHANNEL_ID", "")).strip() or None
         if channel and not channel.isdigit():
             return JSONResponse({"status": "error",
                                  "errors": {"DISCORD_UPDATE_CHANNEL_ID":
                                             "numeric channel ID required"}},
                                 status_code=400)
+        if reminder and not reminder.isdigit():
+            return JSONResponse({"status": "error",
+                                 "errors": {"DISCORD_REMINDER_CHANNEL_ID":
+                                            "numeric channel ID required"}},
+                                status_code=400)
         config_io.save_setup(pins, discord_token=token,
                              discord_channel_id=channel,
-                             discord_admin_role=admin_role)
+                             discord_admin_role=admin_role,
+                             discord_image_url=image_url,
+                             discord_reminder_channel_id=reminder)
         return JSONResponse({"status": "success",
-                             "message": "Setup saved — restart to apply"})
+                             "message": "Setup saved — restart to apply",
+                             "dashboard": "/"})
+
+    @app.post("/update-pins")
+    async def update_pins(request: Request):
+        """Settings: change hardware pin numbers after initial setup.
+
+        Same validation as the wizard; writes .env (+ config.py mirror).
+        Pins take effect on the next restart, which the response states.
+        """
+        content_type = request.headers.get("content-type", "")
+        if "json" in content_type:
+            body = await request.json()
+        else:
+            form = await request.form()
+            body = {k: str(v) for k, v in form.items()}
+
+        pin_keys = ["LCD_RS", "LCD_EN", "LCD_D4", "LCD_D5", "LCD_D6",
+                    "LCD_D7", "DHT_PIN", "BUTTON_PIN", "BUZZER_PIN"]
+        pins: Dict[str, int] = {}
+        errors: Dict[str, str] = {}
+        for key in pin_keys:
+            try:
+                value = int(str(body.get(key, "")).strip())
+                if not (0 <= value <= 27):
+                    raise ValueError
+                pins[key] = value
+            except (TypeError, ValueError):
+                errors[key] = "BCM pin 0-27 required"
+        if len(pins.values()) != len(set(pins.values())):
+            errors["pins"] = "Each pin must be unique"
+        if errors:
+            return JSONResponse({"status": "error", "errors": errors},
+                                status_code=400)
+
+        current = {k: getattr(config.PIN, k) for k in pin_keys}
+        if current == pins:
+            return JSONResponse({"status": "success",
+                                 "message": "No changes — pins already set",
+                                 "changed": False})
+        config_io.save_setup(pins)
+        changed = [k for k in pin_keys if current[k] != pins[k]]
+        config.push_notification(
+            "info", "Pins changed (" + ", ".join(changed)
+            + ") — restart to apply")
+        return JSONResponse({
+            "status": "success", "changed": True,
+            "changed_pins": changed,
+            "message": "Pins saved — restart the station to apply",
+        })
+
+
+def _render_setup(html: str) -> str:
+    """Wizard renderer: pre-fill current pins + Discord fields when
+    re-running after setup ("Reconfigure Hardware" mode)."""
+    if config_io.first_run_needed():
+        return html
+    # Values are read from the .env file itself (config only imports .env at
+    # boot, but the wizard may have rewritten it since this process started).
+    saved_env: Dict[str, str] = {}
+    env_path = config_io.ENV_FILE
+    if env_path.exists():
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                saved_env[k.strip()] = v.strip().strip('"').strip("'")
+    # Pins: prefer fresh .env values, falling back to in-memory config.PIN.
+    for pin_key in ("LCD_RS", "LCD_EN", "LCD_D4", "LCD_D5", "LCD_D6",
+                    "LCD_D7", "DHT_PIN", "BUTTON_PIN", "BUZZER_PIN"):
+        val = saved_env.get(pin_key) or str(getattr(config.PIN, pin_key))
+        html = re.sub(
+            rf'(name="{pin_key}"[^>]*value=")\d+(")',
+            rf'\g<1>{val}\g<2>', html)
+    # Discord fields: pre-fill non-secret saved values (token stays blank).
+    for env_key in ("DISCORD_UPDATE_CHANNEL_ID", "DISCORD_ADMIN_ROLE",
+                    "DISCORD_WEATHER_IMAGE_URL", "DISCORD_REMINDER_CHANNEL_ID"):
+        value = saved_env.get(env_key) or os.environ.get(env_key, "")
+        if not value:
+            continue
+        pattern = rf'(name="{env_key}"[^>]*?)(\s*/?>)'
+        if re.search(pattern, html):
+            safe_value = value.replace("\\", "\\\\").replace("\\g", "\\g0")
+            def _inject(m, val=safe_value):
+                open_tag, close = m.group(1), m.group(2)
+                if 'value="' in open_tag:
+                    return re.sub(r'value="[^"]*"',
+                                  lambda mm, v=val: f'value="{v}"', open_tag)
+                return f'{open_tag} value="{val}"{close}'
+            html = re.sub(pattern, _inject, html, count=1)
+    html = html.replace(
+        "<h1 class=\"text-3xl font-extrabold tracking-tight\">First-Time Setup</h1>",
+        "<h1 class=\"text-3xl font-extrabold tracking-tight\">Reconfigure Hardware</h1>")
+    return html
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +308,7 @@ def _register_api_routes(app: FastAPI) -> None:
             "current_page": state.current_page,
             "lcd_mock": get_lcd_mock_flag(),
             "guest_active": state.guest_active,
+            "local_mode": config.is_local_mode(state),
             "voice_mode": state.get_setting("voice_mode"),
             "unit": unit,
             "time": datetime.now().strftime("%H:%M:%S"),
@@ -524,7 +635,16 @@ def _register_ui_routes(app: FastAPI) -> None:
         # First run: send the user to the guided setup wizard.
         if config_io.first_run_needed():
             return RedirectResponse(url="/setup", status_code=302)
+        # Dynamic display: a dashboard visit flashes "WebUI Connected!" on
+        # the physical LCD once, then the normal page resumes.
+        config.request_webui_flash("WebUI Connected!")
         return _load_template("dashboard.html")
+
+    @app.get("/api/ping")
+    async def webui_ping():
+        """Dynamic display: any web-UI visit flashes the LCD banner once."""
+        config.request_webui_flash("WebUI Connected!")
+        return JSONResponse({"status": "flashed"})
 
     @app.get("/designer", response_class=HTMLResponse)
     async def designer():
@@ -594,6 +714,7 @@ def _register_ui_routes(app: FastAPI) -> None:
         guest_mode: str = Form("OFF"),
         screen_timeout: int = Form(30),
         compress_logs: str = Form("OFF"),
+        local_mode: str = Form("OFF"),
     ):
         state = get_state()
         for key, value in {
@@ -604,11 +725,21 @@ def _register_ui_routes(app: FastAPI) -> None:
             "voice_mode": voice_mode, "guest_mode": guest_mode,
             "screen_timeout": max(0, min(int(screen_timeout), 3600)),
             "compress_logs": compress_logs,
+            "local_mode": local_mode,
         }.items():
             state.set_setting(key, value)
             await database.save_setting(key, value)
         state.mark_page_dirty()
         return RedirectResponse(url="/settings", status_code=303)
+
+    @app.post("/run-backup")
+    async def run_backup():
+        """ENH 3: on-demand full backup into backups/backup_YYYY-MM-DD/."""
+        result = await database.backup_all(reason="manual")
+        if result.get("ok"):
+            config.push_notification(
+                "info", f"Manual backup saved to {result['path']}")
+        return JSONResponse(result)
 
     @app.post("/calibrate-dht")
     async def calibrate_dht():
@@ -675,10 +806,16 @@ def _render_settings(html: str, state) -> str:
     guest_mode = state.get_setting("guest_mode")
     screen_timeout = int(state.get_setting("screen_timeout"))
     compress_logs = state.get_setting("compress_logs")
+    local_mode = state.get_setting("local_mode")
     raw = state.indoor_temp_raw
     offset = float(state.get_setting("dht_offset_temp") or 0.0)
     calibrated = (round(raw + offset, 1) if raw is not None else None)
     unit_now = state.get_setting("unit")
+
+    # Pin editor: current BCM numbers from the live config.PIN values.
+    pin_vals = {k: getattr(config.PIN, k) for k in (
+        "LCD_RS", "LCD_EN", "LCD_D4", "LCD_D5", "LCD_D6", "LCD_D7",
+        "DHT_PIN", "BUTTON_PIN", "BUZZER_PIN")}
 
     def sel(flag: bool) -> str:
         return "selected" if flag else ""
@@ -723,6 +860,18 @@ def _render_settings(html: str, state) -> str:
         "{{ sel_timeout_300 }}": sel(screen_timeout == 300),
         "{{ sel_compress_ON }}": sel(compress_logs == "ON"),
         "{{ sel_compress_OFF }}": sel(compress_logs != "ON"),
+        "{{ sel_local_ON }}": sel(local_mode == "ON"),
+        "{{ sel_local_OFF }}": sel(local_mode != "ON"),
+        # Pin editor values
+        "{{ pin_LCD_RS }}": str(pin_vals["LCD_RS"]),
+        "{{ pin_LCD_EN }}": str(pin_vals["LCD_EN"]),
+        "{{ pin_LCD_D4 }}": str(pin_vals["LCD_D4"]),
+        "{{ pin_LCD_D5 }}": str(pin_vals["LCD_D5"]),
+        "{{ pin_LCD_D6 }}": str(pin_vals["LCD_D6"]),
+        "{{ pin_LCD_D7 }}": str(pin_vals["LCD_D7"]),
+        "{{ pin_DHT }}": str(pin_vals["DHT_PIN"]),
+        "{{ pin_BUTTON }}": str(pin_vals["BUTTON_PIN"]),
+        "{{ pin_BUZZER }}": str(pin_vals["BUZZER_PIN"]),
     }
     for token, value in replacements.items():
         html = html.replace(token, value)

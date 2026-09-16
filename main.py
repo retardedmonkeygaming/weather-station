@@ -36,7 +36,7 @@ from services.moon_phase import calculate_moon_phase
 from services.mqtt_client import mqtt_publish_loop
 from services.render import build_frame
 from services.weather_api import weather_fetch_loop
-from utils import is_night_time, safe_float
+from utils import center_text, is_night_time, safe_float
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,10 +82,14 @@ async def safe_task(coro_func: Callable[[], Awaitable[None]],
 async def _display_manager() -> None:
     """Render the current frame whenever state changes (screen-on guard).
 
-    ENH 6 Screen Timeout: while the screen setting is ON, the LCD blanks
-    after `screen_timeout` seconds without a button press and stays blank
-    until the next tap. Blank frames still flow through state so the web
-    mirror reflects reality. A timeout of 0 disables the feature.
+    Screen Timeout: while the screen setting is ON, the LCD blanks after
+    `screen_timeout` seconds without a button press and stays blank until
+    the next tap. Blank frames still flow through state so the web mirror
+    reflects reality. A timeout of 0 disables the feature.
+
+    Dynamic display: when the web UI is opened it pings the station and the
+    LCD flashes a one-frame banner ("WebUI Connected!" / "Visit WebUI!")
+    before returning to the current page.
     """
     state = get_state()
     lcd = get_lcd()
@@ -95,18 +99,36 @@ async def _display_manager() -> None:
     while True:
         if state.get_setting("screen") == "OFF":
             if not screen_was_off:
+                # "Screen OFF" powers the display down: blank panel + no
+                # rendering. Backlight off where the backend supports it.
+                try:
+                    if hasattr(lcd._backend, "backlight_enabled"):
+                        lcd._backend.backlight_enabled = False
+                except Exception:
+                    pass
                 await lcd.clear()
                 screen_was_off = True
                 last_rendered = ""
                 state.last_lcd_rendered_text = ["SCREEN OFF", ""]
+            # A tap must wake a powered-down panel back to "ON" (otherwise a
+            # user who set Screen OFF from the web UI was stuck with a dead
+            # panel until the next settings save).
+            if time.time() - state.last_button_press < 0.5:
+                state.set_setting("screen", "ON")
+                await database.save_setting("screen", "ON")
             await asyncio.sleep(0.2)
             continue
 
         if screen_was_off:
             screen_was_off = False
+            try:
+                if hasattr(lcd._backend, "backlight_enabled"):
+                    lcd._backend.backlight_enabled = True
+            except Exception:
+                pass
             state.mark_page_dirty()
 
-        # --- Screen Timeout (ENH 6) -------------------------------------
+        # --- Screen Timeout ----------------------------------------------
         try:
             timeout_s = int(state.get_setting("screen_timeout"))
         except (TypeError, ValueError):
@@ -122,7 +144,8 @@ async def _display_manager() -> None:
                 await asyncio.sleep(0.2)
                 continue
             if idle < timeout_s and state.screen_blank:
-                # Any tap resets last_button_press; wake the screen.
+                # A tap OR a web-UI visit wakes the screen (dashboard visits
+                # bump last_button_press via request_webui_flash).
                 state.screen_blank = False
                 state.mark_page_dirty()
 
@@ -130,11 +153,42 @@ async def _display_manager() -> None:
             await asyncio.sleep(0.2)
             continue
 
+        # --- Dynamic display: one-frame WebUI banner ----------------------
+        if state.webui_ping_seq != state.webui_ping_shown:
+            state.webui_ping_shown = state.webui_ping_seq
+            banner = state.webui_ping_text or "WebUI Connected!"
+            await lcd.render(center_text(banner),
+                             center_text(datetime.now().strftime("%H:%M:%S")))
+            state.last_lcd_rendered_text = list(
+                lcd.format_two_rows(
+                    center_text(banner),
+                    center_text(datetime.now().strftime("%H:%M:%S"))))
+            last_rendered = ""
+            state.mark_page_dirty()
+            await asyncio.sleep(2.5)   # hold the banner, then fall through
+            continue
+
+        # First-run: no .env yet — the standing frame points at the wizard
+        # instead of showing sensor pages built on unknown pins.
+        if config_io.first_run_needed():
+            setup_frame = ("  Setup Needed!  ", "   Visit WebUI!   ")
+            if setup_frame != last_rendered:
+                await lcd.render(*setup_frame)
+                state.last_lcd_rendered_text = list(setup_frame)
+                last_rendered = setup_frame
+            await asyncio.sleep(0.5)
+            continue
+
+        line1, line2 = build_frame(state)
+
         line1, line2 = build_frame(state)
 
         if (line1, line2) != last_rendered or state.page_changed:
             await lcd.render(line1, line2, clear_first=state.page_changed)
-            state.last_lcd_rendered_text = [line1, line2]
+            # Store the exact fitted (16-char) rows so every consumer —
+            # web mirror, MQTT, Discord — sees the physical LCD's bytes.
+            state.last_lcd_rendered_text = list(
+                lcd.format_two_rows(line1, line2))
             last_rendered = (line1, line2)
             state.page_changed = False
 
@@ -223,6 +277,27 @@ async def _db_logger() -> None:
         )
 
 
+async def _auto_backup() -> None:
+    """ENH 3 (final pack): full backup every 24 h into backups/backup_YYYY-MM-DD/.
+
+    The first backup fires shortly after boot (a 20 s delay lets the web
+    stack come up first), then the loop re-fires every
+    AUTO_BACKUP_INTERVAL_S. Each run refreshes that day's folder in place.
+    """
+    if not config.AUTO_BACKUP_ENABLED:
+        log.info("Auto-backup disabled (AUTO_BACKUP_ENABLED=OFF)")
+        return
+    await asyncio.sleep(20)  # let DB + web stack settle
+    while True:
+        result = await database.backup_all(reason="scheduled")
+        if result.get("ok"):
+            config.push_notification(
+                "info", f"Auto-backup saved to {result['path']}")
+        else:
+            config.push_notification("error", "Auto-backup failed — see logs")
+        await asyncio.sleep(config.AUTO_BACKUP_INTERVAL_S)
+
+
 async def _guest_mode_monitor() -> None:
     """Guest Mode (ENH 5): after GUEST_MODE_TIMEOUT_S without a button press,
     dim the LCD (contrast lowered) and silence the buzzer — data keeps
@@ -261,14 +336,22 @@ async def _guest_mode_monitor() -> None:
 # ---------------------------------------------------------------------------
 
 async def hardware_boot_sequence() -> None:
-    """Splash + progress bar + sensor/network probes, with override on tap."""
+    """Splash + progress bar + sensor/network probes.
+
+    Fix (first-run UX): a missing DHT11 at boot never blocks the station in
+    an error loop — the web UI is the primary fix-it surface. On a real Pi
+    with sensor trouble the LCD shows one tap-dismissible notice (or
+    "Visit WebUI!" before the wizard has ever been completed) and then
+    continues booting; the DHT11 Reader task keeps probing and self-heals
+    when the sensor is connected.
+    """
     lcd = get_lcd()
     state = get_state()
 
     line1 = " WEATHER STATION"
     if lcd.is_mock:
         line1 = config.MOCK_BOOT_MESSAGE.center(16).rstrip()
-    await lcd.render(line1, " v4.1 Booting...")
+    await lcd.render(line1, f" v{config.APP_VERSION} Booting...")
     buzzer.beep(0.06, 2, pause=0.08)
     await asyncio.sleep(1.0)
 
@@ -295,46 +378,37 @@ async def hardware_boot_sequence() -> None:
     # Network probe (one-shot)
     state.wifi_error = not await _probe_network()
 
-    # Error gate: hold to override, 5s reboot, 10s shutdown.
-    # Only blocks on real hardware — desktop/mock runs proceed for testing.
+    # Desktop/mock runs never block on the hardware error gate.
     if not config.IS_PI:
         if state.dht_error:
             log.warning("DHT11 unavailable (expected on desktop) — continuing")
         if state.wifi_error:
             log.warning("Network probe failed (desktop) — continuing; "
                         "fetch loop will retry")
-        # Desktop must never block on the hardware error gate.
         state.dht_error = False
         state.wifi_error = False
 
-    while (state.dht_error or state.wifi_error) and not state.override_active:
-        await _render_boot_errors(state)
+    # Hardware trouble gate — NON-BLOCKING. One tap skips the notice; the
+    # station always continues so the web UI (setup wizard, settings,
+    # designer) stays reachable. This replaces the old infinite error loop
+    # that locked a first-time user out before any web UI could be served.
+    if state.dht_error or state.wifi_error:
+        # "Visit WebUI!" pre-setup (pins may be wrong — fix them there);
+        # otherwise name the failing subsystem so a tap-through is informed.
+        if config_io.first_run_needed():
+            await lcd.render("Setup Needed!", "  Visit WebUI!")
+        else:
+            await _render_boot_errors(state)
         buzzer.rapid_error_beep()
-
-        pressed = await _wait_for_press()
-        if not pressed:
-            continue
-
-        press_start = time.time()
-        while await _still_pressed():
-            await asyncio.sleep(0.05)
-            elapsed = time.time() - press_start
-            if elapsed >= 10.0:
-                await lcd.render("System Shutdown", "Power Off...")
-                buzzer.beep(1.2, force=True)
-                import os
-                os.system("sudo shutdown -h now")
-                return
-            if elapsed >= 5.0:
-                await lcd.render("System Reboot...", "Please Wait")
-                buzzer.beep(0.6, force=True)
-                import os
-                os.system("sudo reboot")
-                return
-
-        if time.time() - press_start < 1.0:
-            state.override_active = True
-            buzzer.beep(0.1, repeats=2, force=True)
+        config.push_notification(
+            "error",
+            "Boot probe: "
+            + ("DHT11 missing" if state.dht_error else "")
+            + (" & " if state.dht_error and state.wifi_error else "")
+            + ("no network" if state.wifi_error else "")
+            + " — continuing to web UI",
+        )
+        await _wait_for_press()
 
     await lcd.render("System Ready!", "Starting services...")
     await asyncio.sleep(1.0)
@@ -407,6 +481,7 @@ def start_background_tasks() -> List[asyncio.Task]:
         (_db_logger, "DB Logger"),
         (_alarm_monitor, "Alarm Monitor"),
         (_guest_mode_monitor, "Guest Mode"),
+        (_auto_backup, "Auto-Backup"),
         (mqtt_publish_loop, "MQTT Publisher"),
         (discord_bot.discord_bot_task, "Discord Bot"),
     ]

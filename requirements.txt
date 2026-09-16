@@ -1,47 +1,32 @@
-# ==============================================================================
-# SkyCast Weather Station - Requirements
-# Compatible with Python 3.9+
-# ==============================================================================
+# =============================================================================
+# Raspberry Pi Weather Station — Python 3.9+ requirements
+# Every line maps to a real import in this codebase; nothing speculative.
+# =============================================================================
 
-# Core Web Framework & Async Stack
-fastapi>=0.110.0,<1.0.0
-uvicorn[standard]>=0.29.0,<1.0.0
-websockets>=13.0.0,<17.0     # <-- Bumped to fix google-genai conflict
-jinja2>=3.1.3,<4.0.0
-python-multipart>=0.0.9,<1.0.0
+# --- Web stack (dashboard, API, server) ---
+fastapi>=0.110,<1.0            # web/routes.py — HTTP API + UI routes
+uvicorn[standard]>=0.29,<1.0   # web/routes.py run_web_server() — ASGI server
+python-multipart>=0.0.9,<1.0   # web/routes.py — Form(...) endpoints
+jinja2>=3.1,<4.0               # FastAPI template plumbing (default_html)
 
-# Hardware & GPIO (Raspberry Pi Setup)
-# Note: RPi.GPIO and spidev require Raspberry Pi hardware or desktop mock setups
-gpiozero>=2.0,<3.0.0
-RPi.GPIO>=0.7.1,<1.0.0; sys_platform == 'linux' and platform_machine == 'armv7l' or platform_machine == 'aarch64'
-spidev>=3.6,<4.0.0; sys_platform == 'linux' and platform_machine == 'armv7l' or platform_machine == 'aarch64'
-smbus2>=0.5.0,<1.0.0
-Pillow>=10.2.0,<11.0.0
+# --- Outbound HTTP + persistence ---
+aiohttp>=3.9,<4.0              # services/weather_api.py — Open-Meteo fetches
+aiosqlite>=0.20,<1.0           # database.py — WAL-backed SQLite layer
 
-# Adafruit CircuitPython Drivers
-adafruit-blinka>=8.0.0,<9.0.0
-adafruit-circuitpython-ssd1306>=2.11.0,<3.0.0
-adafruit-circuitpython-dht>=4.0.0,<5.0.0
-adafruit-circuitpython-charlcd>=3.5.7,<4.0.0
+# --- Integrations (optional at runtime; degrade cleanly if unconfigured) ---
+discord.py>=2.3,<3.0           # services/discord_bot.py — slash commands, TTS
+paho-mqtt>=1.6,<2.0            # services/mqtt_client.py — broker publishing
 
-# External APIs, Networking & Integrations
-aiohttp>=3.9.1,<4.0.0
-requests>=2.31.0,<3.0.0
-python-dotenv>=1.0.0,<2.0.0
-paho-mqtt>=1.6.0,<2.0.0
+# --- Raspberry Pi hardware (imported only when running on a Pi) ---
+adafruit-circuitpython-charlcd>=4.6   # hardware/lcd_driver.py — 1602A
+adafruit-circuitpython-dht>=4.0       # hardware/sensors.py — DHT11
+adafruit-blinka>=8.0                  # board/digitalio backends for the above
+gpiozero>=2.0                         # hardware/sensors.py — button & buzzer
 
-# Discord Bot Integration (Optional — disables itself if token is missing)
-discord.py>=2.3.2,<3.0.0
+# --- Optional extras (not required to run) ---
+# pyttsx3>=2.90                 # Voice Mode fallback when espeak isn't installed
+                               #   (espeak via `apt install espeak` is preferred)
+# pytest / pytest-asyncio       # test runner, if you add a test suite
 
-# Configuration, Database & Utilities
-pydantic>=2.12.5,<3.0.0      # <-- Bumped to fix google-genai conflict
-pydantic-settings>=2.1.0,<3.0.0
-aiosqlite>=0.20.0,<1.0.0
-asyncio>=3.4.3
-typing-extensions>=4.14.0,<5.0.0 # <-- Bumped to fix google-genai conflict
-
-# Optional: Development & Testing (Uncomment if needed)
-# pytest>=7.4.0
-# pytest-asyncio>=0.21.0
-# black>=23.12.0
-# ruff>=0.1.0
+# Frontend note: Tailwind CSS + Chart.js + HTMX load from CDNs in
+# web/templates/*.html — no pip package needed for them.

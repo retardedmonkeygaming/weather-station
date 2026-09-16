@@ -17,6 +17,7 @@ import gzip
 import io
 import json
 import logging
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -409,6 +410,64 @@ async def clear_all_logs() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Auto-Backup (ENH 3): daily full backup into backups/backup_YYYY-MM-DD/
+# ---------------------------------------------------------------------------
+
+async def backup_all(reason: str = "scheduled") -> Dict[str, Any]:
+    """Write a full backup: SQLite file + settings/pages/logs snapshot.
+
+    Layout:
+        backups/backup_YYYY-MM-DD/
+            weather_history.db     — consistent copy via `VACUUM INTO`
+                                     (falls back to file copy when the SQLite
+                                     build lacks VACUUM INTO)
+            snapshot.json          — logs + settings + ui_pages + page_meta
+                                     (same payload as /api/export/all)
+
+    Re-running on the same day overwrites that day's files in place, so the
+    folder always holds the freshest snapshot of that day.
+    """
+    result: Dict[str, Any] = {"ok": False, "path": None,
+                              "db_backup": None, "snapshot": None,
+                              "reason": reason}
+    try:
+        day_dir = config.BACKUP_DIR / (
+            "backup_" + datetime.now().strftime("%Y-%m-%d"))
+        day_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1) Consistent SQLite copy (safe while WAL is active and readers
+        #    are open — VACUUM INTO serializes the schema internally).
+        db_path = Path(config.DB_FILE)
+        db_out = day_dir / db_path.name
+        db = await get_connection()
+        try:
+            await db.execute("VACUUM INTO ?", (str(db_out),))
+            await db.commit()
+        except Exception:
+            # Older SQLite: fall back to a plain file copy (WAL included).
+            log.warning("VACUUM INTO unavailable — falling back to file copy")
+            shutil.copy2(db_path, db_out)
+            for suffix in ("-wal", "-shm"):
+                side = Path(str(db_path) + suffix)
+                if side.exists():
+                    shutil.copy2(side, day_dir / side.name)
+        result["db_backup"] = db_out.name
+
+        # 2) Human-readable snapshot (same bundle as the JSON export).
+        payload = await export_all_data()
+        snap_out = day_dir / "snapshot.json"
+        snap_out.write_text(
+            json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        result["snapshot"] = snap_out.name
+
+        result.update({"ok": True, "path": str(day_dir)})
+        log.info("Backup (%s) written to %s", reason, day_dir)
+    except Exception:
+        log.exception("Backup failed")
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Custom LCD page layouts
 # ---------------------------------------------------------------------------
 
@@ -479,7 +538,8 @@ async def save_runtime_snapshot(state) -> None:
                     "alarm_hr", "alarm_min", "api_rate", "log_rate",
                     "dht_offset_temp", "latitude", "longitude",
                     "voice_mode", "guest_mode", "screen_timeout",
-                    "compress_logs", "alert_high", "alert_low"):
+                    "compress_logs", "alert_high", "alert_low",
+                    "local_mode"):
             await save_setting(key, state.get_setting(key))
         for page_id, name in state.page_names.items():
             await rename_page(page_id, name)
