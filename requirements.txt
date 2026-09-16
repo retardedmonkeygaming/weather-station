@@ -18,7 +18,7 @@ discord.py>=2.3,<3.0           # services/discord_bot.py — slash commands, TTS
 paho-mqtt>=1.6,<2.0            # services/mqtt_client.py — broker publishing
 
 # --- Raspberry Pi hardware (imported only when running on a Pi) ---
-adafruit-circuitpython-charlcd>=4.6   # hardware/lcd_driver.py — 1602A
+adafruit-circuitpython-charlcd>=3.5,<4.0  # hardware/lcd_driver.py — 1602A
 adafruit-circuitpython-dht>=4.0       # hardware/sensors.py — DHT11
 adafruit-blinka>=8.0                  # board/digitalio backends for the above
 gpiozero>=2.0                         # hardware/sensors.py — button & buzzer
